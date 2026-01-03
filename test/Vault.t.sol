@@ -33,7 +33,7 @@ contract VaultTest is Test {
         uint256 principal = 100 * 1e18; // Principal 100 USDT
         uint256 yield = 10 * 1e18; // Simulated return of 10 USDT
 
-       // Step 1: User Deposit---
+        // Step 1: User Deposit---
         vm.startPrank(user);
         usdt.approve(address(vault), principal);
         vault.deposit(principal);
