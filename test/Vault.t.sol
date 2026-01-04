@@ -72,9 +72,9 @@ contract VaultTest is Test {
     function testInflationAttack() public {
         address attacker = address(0xBAD);
         address victim = address(0xB1C);
-        
+
         // Attention: The first deposit now must be>1000 wei, otherwise it will be revoked
-        uint256 attackerAmt = 1001; 
+        uint256 attackerAmt = 1001;
         uint256 donationAmt = 100 * 1e18;
         uint256 victimAmt = 100 * 1e18;
 
@@ -84,9 +84,9 @@ contract VaultTest is Test {
         // --- 1. Attackers attempt to attack---
         vm.startPrank(attacker);
         usdt.approve(address(vault), attackerAmt);
-        vault.deposit(attackerAmt); 
+        vault.deposit(attackerAmt);
         // At this point: TotalSupply=1001 (1000 dead shares+1 attacker)
-        
+
         // Attackers donate
         usdt.transfer(address(vault), donationAmt);
         vm.stopPrank();
@@ -103,6 +103,5 @@ contract VaultTest is Test {
 
         // Even with the attacker's donation interference, the victim should still get close to 1:1 shares
         assertGt(victimShares, 0, "Victim should NOT lose funds anymore");
-
     }
 }
