@@ -25,29 +25,26 @@ contract Vault is ERC20 {
 
         // A. Calculate how many shares can be exchanged (Shares)
         uint256 shares;
+        
         if (totalSupply() == 0) {
-            // If it is the first person to deposit, 1 Asset=1 Share (1:1)
-            shares = assets;
+            // ---  🛡️  Defense core code---
+            // During the first coinage, a forced sacrifice of 1000 wei of shares was given to 0 addresses (dead shares)
+            // This ensures that the total supply is always at least 1000, preventing manipulation 
+            // caused by a denominator that is too small
+            require(assets > 1000, "First deposit must be > 1000 wei");
+            
+            // After deducting 1000, the remaining amount is given to the user
+            shares = assets - 1000;
+            _mint(address(0xdead), 1000); 
         } else {
-            // If someone has already deposited, calculate based on the current exchange rate
-            // Formula: shares=(deposit amount * total shares)/total assets of the vault
-            // Example: Save 100, Total 1000, Total 1100->100 * 1000/1100=90 shares
+            // Subsequent deposits will be calculated as usual
             shares = (assets * totalSupply()) / totalAssets();
         }
 
-        // B. First, transfer the user's money in (Checks-Effects Interactions mode:
-        // change the status first and then transfer, this is slightly special because mint is at the end)
-        // Attention: Users must first approve this contract!
-        // The return value of transferFrom needs to be checked (SafeERC20 is omitted here for code simplicity,
-        // and must be used in production environments)
         bool success = ASSET.transferFrom(msg.sender, address(this), assets);
         require(success, "Transfer failed");
 
-        //C. Casting vouchers for users
         _mint(msg.sender, shares);
-
-        // D. (Optional) Throw an event for Go Indexer to listen
-        // emit Deposit(msg.sender, assets, shares);
     }
 
     // ==========================================
