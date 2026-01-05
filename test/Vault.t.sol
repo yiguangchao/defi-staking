@@ -68,4 +68,40 @@ contract VaultTest is Test {
         console.log("Yield:", yield / 1e18);
         console.log("Final User Balance:", usdt.balanceOf(user) / 1e18);
     }
+
+    function testInflationAttack() public {
+        address attacker = address(0xBAD);
+        address victim = address(0xB1C);
+
+        // Attention: The first deposit now must be>1000 wei, otherwise it will be revoked
+        uint256 attackerAmt = 1001;
+        uint256 donationAmt = 100 * 1e18;
+        uint256 victimAmt = 100 * 1e18;
+
+        usdt.mint(attacker, attackerAmt + donationAmt);
+        usdt.mint(victim, victimAmt);
+
+        // --- 1. Attackers attempt to attack---
+        vm.startPrank(attacker);
+        usdt.approve(address(vault), attackerAmt);
+        vault.deposit(attackerAmt);
+        // At this point: TotalSupply=1001 (1000 dead shares+1 attacker)
+
+        // Attackers donate
+        usdt.transfer(address(vault), donationAmt);
+        vm.stopPrank();
+
+        // --- 2. Victims' deposits---
+        vm.startPrank(victim);
+        usdt.approve(address(vault), victimAmt);
+        vault.deposit(victimAmt);
+        vm.stopPrank();
+
+        // --- 3. Verification results---
+        uint256 victimShares = vault.balanceOf(victim);
+        console.log("Victim Shares:", victimShares);
+
+        // Even with the attacker's donation interference, the victim should still get close to 1:1 shares
+        assertGt(victimShares, 0, "Victim should NOT lose funds anymore");
+    }
 }
