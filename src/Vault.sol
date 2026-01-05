@@ -3,76 +3,61 @@ pragma solidity ^0.8.20;
 
 import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IStrategy} from "./interfaces/IStrategy.sol";
 
-// Vault the contract itself is also an ERC20 token (representing shares)
 contract Vault is ERC20 {
-    // 1. state variable
-    IERC20 public immutable ASSET; // Underlying assets (such as USDT)
+    using SafeERC20 for IERC20;
 
-    // 2. constructor
-    // _asset: what token we want to deposit (USDT address)
-    // "Vault USDT", "vUSDT": the name of the token that users receive
-    constructor(IERC20 _asset) ERC20("Vault USDT", "vUSDT") {
-        ASSET = _asset;
+    IERC20 public immutable asset;
+    IStrategy public strategy;
+
+    constructor(IERC20 _asset, IStrategy _strategy) ERC20("Vault USDT", "vUSDT") {
+        asset = _asset;
+        strategy = _strategy;
     }
 
-    // ==========================================
-    // 3. Deposit Logic
-    // User deposits assets (USDT) ->receives shares (vUSDT)
-    // ==========================================
     function deposit(uint256 assets) public {
-        require(assets > 0, "Deposit amount must be greater than 0");
+        require(assets > 0, "Deposit > 0");
 
-        // A. Calculate how many shares can be exchanged (Shares)
         uint256 shares;
-
         if (totalSupply() == 0) {
-            // ---  🛡️  Defense core code---
-            // During the first coinage, a forced sacrifice of 1000 wei of shares was given to 0 addresses (dead shares)
-            // This ensures that the total supply is always at least 1000, preventing manipulation
-            // caused by a denominator that is too small
-            require(assets > 1000, "First deposit must be > 1000 wei");
-
-            // After deducting 1000, the remaining amount is given to the user
+            require(assets > 1000, "First deposit > 1000");
             shares = assets - 1000;
             _mint(address(0xdead), 1000);
         } else {
-            // Subsequent deposits will be calculated as usual
             shares = (assets * totalSupply()) / totalAssets();
         }
 
-        bool success = ASSET.transferFrom(msg.sender, address(this), assets);
-        require(success, "Transfer failed");
+        // 1. Transfer to Vault
+        asset.safeTransferFrom(msg.sender, address(this), assets);
+
+        // 2. Transfer to Strategy
+        asset.forceApprove(address(strategy), assets);
+        strategy.deposit(assets);
 
         _mint(msg.sender, shares);
     }
 
-    // ==========================================
-    // 4. Withdraw Logic
-    // User burns shares (vUSDT) -> gets back assets (USDT)
-    // ==========================================
     function withdraw(uint256 shares) public {
-        require(shares > 0, "Shares must be greater than 0");
+        require(shares > 0, "Shares > 0");
         require(balanceOf(msg.sender) >= shares, "Insufficient balance");
 
-        // A. Calculate how much assets can be withdrawn
-        // Formula: assets = (burned shares * vault total assets) / total shares
-        // Example: burn 10, total assets 1100, total shares 100 -> 10 * 1100 / 100 = 110 assets
         uint256 payoutAmount = (shares * totalAssets()) / totalSupply();
-
-        // B. Destroy the user's vouchers
         _burn(msg.sender, shares);
 
-        // C. Transfer the money to the user
-        bool success = ASSET.transfer(msg.sender, payoutAmount);
-        require(success, "Transfer failed");
+        // Check the vault balance, if it's not enough, ask Strategy for assistance
+        uint256 float = asset.balanceOf(address(this));
+        if (float < payoutAmount) {
+            uint256 shortage = payoutAmount - float;
+            strategy.withdraw(shortage);
+        }
 
-        // D. (Optional) Throw an event
-        // emit Withdraw(msg.sender, payoutAmount, shares);
+        asset.safeTransfer(msg.sender, payoutAmount);
     }
 
-    // How many are currently in the vault USDT
+    // Assets=Vault balance+Strategy balance
     function totalAssets() public view returns (uint256) {
-        return ASSET.balanceOf(address(this));
+        return asset.balanceOf(address(this)) + strategy.totalAssets();
     }
 }
