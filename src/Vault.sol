@@ -24,14 +24,14 @@ contract Vault is ERC20 {
         if (totalSupply() == 0) {
             require(assets > 1000, "First deposit > 1000");
             shares = assets - 1000;
-            _mint(address(0xdead), 1000); 
+            _mint(address(0xdead), 1000);
         } else {
             shares = (assets * totalSupply()) / totalAssets();
         }
 
         // 1. Transfer to Vault
         asset.safeTransferFrom(msg.sender, address(this), assets);
-        
+
         // 2. Transfer to Strategy
         asset.forceApprove(address(strategy), assets);
         strategy.deposit(assets);

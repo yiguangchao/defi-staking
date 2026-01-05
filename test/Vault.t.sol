@@ -14,14 +14,14 @@ contract VaultTest is Test {
 
     function setUp() public {
         usdt = new MockUSDT();
-        
+
         // 1. Deploy the strategy first
         strategy = new MockStrategy(usdt);
-        
+
         // 2. Injection strategy when deploying Vault (dependency injection)
         vault = new Vault(usdt, strategy);
-        
-        usdt.mint(user, 100 * 1e18); 
+
+        usdt.mint(user, 100 * 1e18);
     }
 
     function testDeposit() public {
@@ -30,10 +30,10 @@ contract VaultTest is Test {
         vault.deposit(100 * 1e18);
 
         assertEq(usdt.balanceOf(user), 0);
-        
+
         // Verify dead stock logic (Deposit -1000)
         assertEq(vault.balanceOf(user), 100 * 1e18 - 1000, "Should mint shares minus dead shares");
-        
+
         // Verify the destination of funds:
         // The money should not be in the vault, but should be transferred to the strategy!
         assertEq(usdt.balanceOf(address(vault)), 0, "Vault should hold 0 float");
@@ -46,8 +46,8 @@ contract VaultTest is Test {
     function testInflationAttack() public {
         address attacker = address(0xBAD);
         address victim = address(0xB1C);
-        
-        uint256 attackerAmt = 1001; 
+
+        uint256 attackerAmt = 1001;
         uint256 donationAmt = 100 * 1e18;
         uint256 victimAmt = 100 * 1e18;
 
@@ -57,8 +57,8 @@ contract VaultTest is Test {
         // --- 1. Attackers attempt to attack---
         vm.startPrank(attacker);
         usdt.approve(address(vault), attackerAmt);
-        vault.deposit(attackerAmt); 
-        
+        vault.deposit(attackerAmt);
+
         usdt.transfer(address(vault), donationAmt);
         vm.stopPrank();
 
@@ -76,8 +76,8 @@ contract VaultTest is Test {
     }
 
     function testYieldGeneration() public {
-        uint256 principal = 100 * 1e18; 
-        uint256 yield = 10 * 1e18;      
+        uint256 principal = 100 * 1e18;
+        uint256 yield = 10 * 1e18;
 
         // ---Step 1: User Deposit---
         vm.startPrank(user);
@@ -96,12 +96,12 @@ contract VaultTest is Test {
 
         // ---Step 3: User Withdraw---
         vm.startPrank(user);
-        vault.withdraw(vault.balanceOf(user)); 
+        vault.withdraw(vault.balanceOf(user));
         vm.stopPrank();
 
         // ---Step 4: Verify final profit ---
         assertGt(usdt.balanceOf(user), principal, "User should make a profit");
-        
+
         console.log("Yield Test Passed!");
     }
 }
