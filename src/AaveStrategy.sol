@@ -9,8 +9,8 @@ import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/Safe
 contract AaveStrategy is IStrategy {
     using SafeERC20 for IERC20;
 
-    IERC20 public immutable asset;      // USDT
-    IERC20 public immutable aToken;     // aEthUSDT
+    IERC20 public immutable asset; // USDT
+    IERC20 public immutable aToken; // aEthUSDT
     IAavePool public immutable aavePool; // Aave
 
     constructor(IERC20 _asset, IERC20 _aToken, IAavePool _aavePool) {
@@ -38,8 +38,7 @@ contract AaveStrategy is IStrategy {
         asset.safeTransfer(msg.sender, amount);
     }
 
-    function harvest() external {
-    }
+    function harvest() external {}
 
     // Core: Our total assets = aToken balance
     // Since aToken is also an ERC20, and its balance increases over time (1 aUSDT = 1 USDT)
