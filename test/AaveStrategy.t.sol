@@ -16,11 +16,14 @@ interface IAavePool {
 
 contract DynamicStrategy {
     using SafeERC20 for IERC20;
+
     IERC20 public immutable asset;
+    IERC20 public immutable aToken;
     IAavePool public immutable aavePool;
 
-    constructor(address _asset, address _pool) {
+    constructor(address _asset, address _aToken, address _pool) {
         asset = IERC20(_asset);
+        aToken = IERC20(_aToken);
         aavePool = IAavePool(_pool);
     }
 
@@ -29,56 +32,66 @@ contract DynamicStrategy {
         asset.forceApprove(address(aavePool), amount);
         aavePool.supply(address(asset), amount, address(this), 0);
     }
+
+    function withdraw(uint256 amount) external {
+        aavePool.withdraw(address(asset), amount, address(this));
+        asset.safeTransfer(msg.sender, amount);
+    }
+
+    function totalAssets() external view returns (uint256) {
+        return aToken.balanceOf(address(this));
+    }
 }
 
 contract AaveRegistryTest is Test {
     using SafeERC20 for IERC20;
 
     address constant PROVIDER_ADDR = 0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e;
+
     address constant USDT_ADDR = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+
+    address constant A_USDT_ADDR = 0x23878914EFE38d27C4D67Ab83ed1b93A74D4086a;
 
     string RPC_URL = "https://eth-mainnet.g.alchemy.com/v2/e8WW1ln1MXAyRT8rWjPpg";
 
     DynamicStrategy strategy;
     IERC20 usdt = IERC20(USDT_ADDR);
+    IERC20 aUsdt = IERC20(A_USDT_ADDR);
 
     function setUp() public {
         vm.createSelectFork(RPC_URL, 19800000);
 
-        console.log("---------------- DIAGNOSIS ----------------");
-        console.log("Chain ID:", block.chainid);
+        address realPoolAddress = IPoolAddressesProvider(PROVIDER_ADDR).getPool();
+        console.log("Real Pool Address:", realPoolAddress);
 
-        uint256 size;
-        address provider = PROVIDER_ADDR;
-        assembly { size := extcodesize(provider) }
-        if (size == 0) {
-            console.log("CRITICAL: AddressesProvider is EMPTY! Network is wrong.");
-            revert("Provider empty");
-        }
-        console.log("Success: Provider found.");
+        strategy = new DynamicStrategy(USDT_ADDR, A_USDT_ADDR, realPoolAddress);
 
-        address realPoolAddress = IPoolAddressesProvider(provider).getPool();
-        console.log("Real Pool Address from Registry:", realPoolAddress);
-
-        address target = realPoolAddress;
-        assembly { size := extcodesize(target) }
-        if (size == 0) {
-            console.log("CRITICAL: The Pool address returned by Provider is EMPTY!");
-            revert("Pool empty");
-        }
-        console.log("Success: Real Pool found. Code size:", size);
-        console.log("-------------------------------------------");
-
-        strategy = new DynamicStrategy(USDT_ADDR, realPoolAddress);
-        deal(USDT_ADDR, address(this), 2000 * 1e6);
+        deal(USDT_ADDR, address(this), 5000 * 1e6);
     }
 
-    function testDynamicInteraction() public {
+    function testYieldGeneration() public {
         uint256 amount = 1000 * 1e6;
         usdt.forceApprove(address(strategy), amount);
 
-        console.log(">> Depositing to real pool...");
+        console.log(">> Depositing 1000 USDT...");
         strategy.deposit(amount);
-        console.log(">> Deposit Success!");
+
+        uint256 balanceBefore = strategy.totalAssets();
+        console.log("Balance Before:", balanceBefore);
+
+        assertApproxEqAbs(balanceBefore, amount, 10, "Initial balance match");
+
+        console.log(">> Warping time 365 days...");
+        vm.warp(block.timestamp + 365 days);
+        vm.roll(block.number + 2600000);
+
+        uint256 balanceAfter = strategy.totalAssets();
+        console.log("Balance After :", balanceAfter);
+
+        assertGt(balanceAfter, balanceBefore, "Yield should be generated!");
+
+        uint256 profit = balanceAfter - balanceBefore;
+        console.log("Profit generated (in 1 year):", profit);
+        console.log("APY (approx):", profit * 10000 / balanceBefore);
     }
 }
