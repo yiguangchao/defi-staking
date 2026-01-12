@@ -15,7 +15,7 @@ import (
 
 func main() {
 	// 1.connect to an Ethereum node
-	rpcUrl := "https://eth-mainnet.g.alchemy.com/v2/e8WW1ln1MXAyRT8rWjPpg"
+	rpcUrl := "http://127.0.0.1:8545"
 	client, err := ethclient.Dial(rpcUrl)
 	if err != nil {
 		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
@@ -23,7 +23,7 @@ func main() {
 	fmt.Println("Connected to Ethereum node")
 
 	// 2.Prepare contract address
-	contractAddress := common.HexToAddress("")
+	contractAddress := common.HexToAddress("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0")
 
 	vault, err := bindings.NewVault(contractAddress, client)
 	if err != nil {
@@ -38,9 +38,15 @@ func main() {
 	if header == nil {
 		log.Fatalf("Failed to get latest block header")
 	}
-	currentBlock := header.Number.Uint64()
-	startBlock := currentBlock - 1000
 
+	currentBlock := header.Number.Uint64()
+
+	var startBlock uint64
+	if currentBlock > 1000 {
+		startBlock = currentBlock - 1000
+	} else {
+		startBlock = 0
+	}
 	fmt.Printf("Querying events from block %d to %d\n", startBlock, currentBlock)
 
 	filterOpts := &bind.FilterOpts{
