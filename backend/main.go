@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"log"
 	"math/big"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/gin-gonic/gin"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -20,11 +18,11 @@ import (
 // 💾 Define database model (Model)
 type DepositRecord struct {
 	gorm.Model
-	TxHash      string `gorm:"uniqueIndex"`
-	BlockNumber uint64
-	UserAddress string
-	AmountWei   string
-	AmountHuman float64
+	TxHash      string  `gorm:"uniqueIndex" json:"tx_hash"`
+	BlockNumber uint64  `json:"block_number"`
+	UserAddress string  `json:"user_address"`
+	AmountWei   string  `json:"-"`
+	AmountHuman float64 `json:"amount_usdt"`
 }
 
 func main() {
@@ -39,64 +37,75 @@ func main() {
 	db.AutoMigrate(&DepositRecord{})
 	fmt.Println("🐘  PostgreSQL connection successful, table structure initialized")
 
-	// --- 2. Connect to WebSocket nodes ---
+	// --- 2. Start blockchain monitoring (put into backend Goroutine) ---
+	go startBlockchainListener(db)
+
+	// --- 3. Start Web API server (Gin) ---
+	r := gin.Default()
+
+	// Interface: Query all deposits
+	r.GET("/api/deposits", func(c *gin.Context) {
+		var records []DepositRecord
+		// Query database, ordered by time descending
+		result := db.Order("id desc").Find(&records)
+		if result.Error != nil {
+			c.JSON(500, gin.H{"error": result.Error.Error()})
+			return
+		}
+		// Return JSON
+		c.JSON(200, gin.H{
+			"code": 200,
+			"data": records,
+			"msg":  "success",
+		})
+	})
+
+	fmt.Println("🚀 API Service started, listening port :8080")
+	r.Run(":8080")
+}
+
+// Independent listener function
+func startBlockchainListener(db *gorm.DB) {
 	client, err := ethclient.Dial("ws://127.0.0.1:8545")
 	if err != nil {
-		log.Fatalf("❌ Chain connection failed: %v", err)
+		log.Printf("❌ Chain connection failed: %v", err)
+		return
 	}
-	fmt.Println("✅ WebSocket connected")
 
-	// --- 3. Binding contract ---
-	// ⚠️ Make sure this is the address where your cast send was successful just now
 	contractAddress := common.HexToAddress("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0")
 	vault, err := bindings.NewVault(contractAddress, client)
 	if err != nil {
-		log.Fatalf("❌ Contract binding failed: %v", err)
+		log.Printf("❌ Contract binding failed: %v", err)
+		return
 	}
 
-	// --- 4. start listening ---
 	depositChan := make(chan *bindings.VaultDeposit)
 	sub, err := vault.WatchDeposit(&bind.WatchOpts{Context: nil}, depositChan, nil, nil)
 	if err != nil {
-		log.Fatalf("❌ Subscription failed: %v", err)
+		log.Printf("❌ Subscription failed: %v", err)
+		return
 	}
-	fmt.Println("🎧 Monitoring for new deposit events and preparing to write to the database...")
+	fmt.Println("🎧 Blockchain listener started in background...")
 
-	// --- 5. handle incidents ---
-	go func() {
-		for {
-			select {
-			case err := <-sub.Err():
-				log.Fatalf("❌ Subscription disconnected: %v", err)
-			case event := <-depositChan:
-				// Calculate human readable amounts
-				amountFloat := new(big.Float).SetInt(event.Assets)
-				humanAmount, _ := new(big.Float).Quo(amountFloat, big.NewFloat(1e18)).Float64()
+	for {
+		select {
+		case err := <-sub.Err():
+			log.Printf("❌ Subscription disconnected: %v", err)
+		case event := <-depositChan:
+			amountFloat := new(big.Float).SetInt(event.Assets)
+			humanAmount, _ := new(big.Float).Quo(amountFloat, big.NewFloat(1e18)).Float64()
 
-				// 📦 Build a record object
-				record := DepositRecord{
-					TxHash:      event.Raw.TxHash.Hex(),
-					BlockNumber: event.Raw.BlockNumber,
-					UserAddress: event.Owner.Hex(),
-					AmountWei:   event.Assets.String(),
-					AmountHuman: humanAmount,
-				}
+			record := DepositRecord{
+				TxHash:      event.Raw.TxHash.Hex(),
+				BlockNumber: event.Raw.BlockNumber,
+				UserAddress: event.Owner.Hex(),
+				AmountWei:   event.Assets.String(),
+				AmountHuman: humanAmount,
+			}
 
-				// 💾 store in the database
-				result := db.Create(&record)
-				if result.Error != nil {
-					log.Printf("⚠️ Save failed (possibly due to duplicate transactions): %v", result.Error)
-				} else {
-					fmt.Printf("\n💾 [Storage successful] User: %s | amount: %.2f USDT | Block: %d\n",
-						record.UserAddress, record.AmountHuman, record.BlockNumber)
-				}
+			if err := db.Create(&record).Error; err == nil {
+				fmt.Printf("\n🐘 [Inbound] User:%s Amount:%.2f\n", record.UserAddress, record.AmountHuman)
 			}
 		}
-	}()
-
-	// --- 6. Elegant Exit ---
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-	fmt.Println("👋 Program exit")
+	}
 }
