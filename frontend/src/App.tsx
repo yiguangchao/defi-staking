@@ -1,4 +1,5 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { EventsTable } from './components/EventsTable'; // 👈 引入组件
 
 function App() {
   return (
@@ -7,20 +8,21 @@ function App() {
       flexDirection: 'column',
       alignItems: 'center',
       padding: '50px',
-      fontFamily: 'sans-serif'
+      fontFamily: 'sans-serif',
+      maxWidth: '800px',
+      margin: '0 auto' // 居中
     }}>
-      <h1>🏦 My DeFi Vault</h1>
-      <p>Web3 Full Stack Development Demo (Solidity + Go + React)</p>
+      <h1>🏦 我的 DeFi 金库</h1>
+      <p style={{ color: '#666' }}>Web3 全栈开发演示 (Solidity + Go + React)</p>
       
-      {/* 🌈 RainbowKit Provided components */}
-      <div style={{ marginTop: '20px' }}>
+      {/* 🌈 钱包连接 */}
+      <div style={{ margin: '20px 0' }}>
         <ConnectButton />
       </div>
 
-      <div style={{ marginTop: '50px', border: '1px solid #ccc', padding: '20px', borderRadius: '10px' }}>
-        <h3>🚀 status check</h3>
-        <p>If you see the connection button above, the frontend environment is successfully set up!</p>
-      </div>
+      {/* 📊 数据表格组件 */}
+      <EventsTable /> 
+
     </div>
   );
 }

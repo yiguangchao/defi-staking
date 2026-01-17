@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"gorm.io/driver/postgres"
@@ -43,6 +44,15 @@ func main() {
 
 	// --- 3. Start Web API server (Gin) ---
 	r := gin.Default()
+
+	// Configure CORS middleware (allowing cross domain)
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173"},
+		AllowMethods:     []string{"GET", "POST"},
+		AllowHeaders:     []string{"Origin", "Content-Type"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+	}))
 
 	// Interface: Query all deposits
 	r.GET("/api/events", func(c *gin.Context) {
