@@ -1,5 +1,6 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { EventsTable } from './components/EventsTable'; // 👈 引入组件
+import { EventsTable } from './components/EventsTable';
+import { ActionPanel } from './components/ActionPanel';
 
 function App() {
   return (
@@ -10,18 +11,26 @@ function App() {
       padding: '50px',
       fontFamily: 'sans-serif',
       maxWidth: '800px',
-      margin: '0 auto' // 居中
+      margin: '0 auto',
+      background: '#f8fafc',
+      minHeight: '100vh'
     }}>
-      <h1>🏦 我的 DeFi 金库</h1>
-      <p style={{ color: '#666' }}>Web3 全栈开发演示 (Solidity + Go + React)</p>
+      <h1 style={{ marginBottom: '10px' }}>🏦 My DeFi Vault</h1>
+      <p style={{ color: '#64748b', marginBottom: '30px' }}>Web3 full-stack demo (Solidity + Go + React)</p>
       
-      {/* 🌈 钱包连接 */}
-      <div style={{ margin: '20px 0' }}>
+      {/* 🌈 Wallet connection */}
+      <div style={{ marginBottom: '30px' }}>
         <ConnectButton />
       </div>
 
-      {/* 📊 数据表格组件 */}
-      <EventsTable /> 
+      {/* Two core component containers */}
+      <div style={{ width: '100%', maxWidth: '600px' }}>
+        {/* 1. Operation panel (write) */}
+        <ActionPanel />
+        
+        {/* 2. Data table (read) */}
+        <EventsTable /> 
+      </div>
 
     </div>
   );
