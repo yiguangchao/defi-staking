@@ -9,3 +9,14 @@ export const VAULT_ABI = [
   // withdraw
   "function withdraw(uint256 assets, address receiver, address owner)"
 ] as const;
+
+export const ERC20_ABI = [
+  // Query authorization limit: allowance (owner, payer)
+  "function allowance(address owner, address spender) view returns (uint256)",
+  // Perform authorization: approve(spender, amount)
+  "function approve(address spender, uint256 amount) returns (bool)",
+  // Query balance (optional, for optimization)
+  "function balanceOf(address account) view returns (uint256)",
+  // Query what token this Vault uses (e.g. USDT or DAI?)
+  "function asset() view returns (address)"
+] as const;
