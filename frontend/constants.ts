@@ -18,5 +18,7 @@ export const ERC20_ABI = [
   // Query balance (optional, for optimization)
   "function balanceOf(address account) view returns (uint256)",
   // Query what token this Vault uses (e.g. USDT or DAI?)
-  "function asset() view returns (address)"
+  "function asset() view returns (address)",
+  //Ordinary transfer function (used to simulate sending money)
+  "function transfer(address to, uint256 amount) returns (bool)"
 ] as const;
