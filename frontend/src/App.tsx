@@ -1,6 +1,7 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { EventsTable } from './components/EventsTable';
 import { ActionPanel } from './components/ActionPanel';
+import { VaultInfo } from './components/VaultInfo';
 
 function App() {
   return (
@@ -25,11 +26,14 @@ function App() {
 
       {/* Two core component containers */}
       <div style={{ width: '100%', maxWidth: '600px' }}>
-        {/* 1. Operation panel (write) */}
+        {/* 1. Top board */}
+        <VaultInfo />
+
+        {/* 2. Action Panel */}
         <ActionPanel />
         
-        {/* 2. Data table (read) */}
-        <EventsTable /> 
+        {/* 3. data table */}
+        <EventsTable />
       </div>
 
     </div>

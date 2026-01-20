@@ -12,7 +12,7 @@ import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 // 2. Configure Chain
 const config = getDefaultConfig({
   appName: 'My DeFi App',
-  projectId: 'YOUR_PROJECT_ID',
+  projectId: 'YOUR_PROJECT_ID', 
   chains: [foundry, mainnet, sepolia],
   ssr: false, 
 });
