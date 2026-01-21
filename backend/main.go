@@ -47,7 +47,7 @@ func main() {
 
 	// Configure CORS middleware (allowing cross domain)
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:5174"},
+		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:5174", "http://localhost:5175"},
 		AllowMethods:     []string{"GET", "POST"},
 		AllowHeaders:     []string{"Origin", "Content-Type"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -75,6 +75,43 @@ func main() {
 			"total_deposit":  totalDeposit,
 			"total_withdraw": totalWithdraw,
 		})
+	})
+
+	r.GET("/api/history", func(c *gin.Context) {
+		var events []VaultEvent
+		//Arrange in positive order by ID (from morning till night) for easy calculation and accumulation
+		db.Order("id asc").Find(&events)
+
+		// Define the return data structure
+		type HistoryPoint struct {
+			ID     uint    `json:"id"`
+			Time   string  `json:"time"`
+			TVL    float64 `json:"tvl"`
+			Change float64 `json:"change"` // This transaction changed by how much
+		}
+
+		var history []HistoryPoint
+		var currentTVL float64 = 0
+
+		// 🧠 Core algorithm: replay history (Replay)
+		for _, evt := range events {
+			// Accumulated calculation
+			if evt.EventType == "DEPOSIT" {
+				currentTVL += evt.AmountHuman
+			} else if evt.EventType == "WITHDRAW" {
+				currentTVL -= evt.AmountHuman
+			}
+
+			// Record the status of this moment
+			history = append(history, HistoryPoint{
+				ID:     evt.ID,
+				Time:   evt.CreatedAt.Format("15:04:05"),
+				TVL:    currentTVL,
+				Change: evt.AmountHuman,
+			})
+		}
+
+		c.JSON(200, gin.H{"code": 200, "data": history})
 	})
 
 	fmt.Println("🚀 API Service started, listening port :8080")
