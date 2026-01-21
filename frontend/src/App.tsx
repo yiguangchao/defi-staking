@@ -2,6 +2,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { EventsTable } from './components/EventsTable';
 import { ActionPanel } from './components/ActionPanel';
 import { VaultInfo } from './components/VaultInfo';
+import { TVLChart } from './components/TVLChart';
 
 function App() {
   return (
@@ -34,6 +35,9 @@ function App() {
         
         {/* 3. data table */}
         <EventsTable />
+
+        {/* 4. TVL Chart */}
+        <TVLChart />
       </div>
 
     </div>
