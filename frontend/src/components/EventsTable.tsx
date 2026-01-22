@@ -6,11 +6,10 @@ interface VaultEvent {
   CreatedAt: string;
   tx_hash: string;
   block_number: number;
-  event_type: 'DEPOSIT' | 'WITHDRAW';
+  event_type: 'DEPOSIT' | 'WITHDRAW' | 'YIELD';
   user_address: string;
   amount_usdt: number;
 }
-
 export const EventsTable = () => {
   // Use React Query to automatically manage request status (loading/error/success)
   const { data, isLoading, error } = useQuery({
@@ -24,11 +23,11 @@ export const EventsTable = () => {
       return response.json();
     },
     // Automatically refresh data every 2 seconds to achieve "real-time" effect
-    refetchInterval: 2000, 
+    refetchInterval: 2000,
   });
 
-  if (isLoading) return <div style={{textAlign: 'center'}}>⏳ Loading data...</div>;
-  if (error) return <div style={{color: 'red'}}>❌ Loading failed: {error.message} (Please check if the Go backend is running)</div>;
+  if (isLoading) return <div style={{ textAlign: 'center' }}>⏳ Loading data...</div>;
+  if (error) return <div style={{ color: 'red' }}>❌ Loading failed: {error.message} (Please check if the Go backend is running)</div>;
 
   // The data structure returned by the backend is {code: 200, data: [...]}
   const events: VaultEvent[] = data?.data || [];
@@ -54,14 +53,20 @@ export const EventsTable = () => {
               <tr key={evt.ID} style={{ borderBottom: '1px solid #eee' }}>
                 <td style={{ padding: '8px' }}>
                   <span style={{
-                    background: evt.event_type === 'DEPOSIT' ? '#e6fffa' : '#fff5f5',
-                    color: evt.event_type === 'DEPOSIT' ? '#00bfa5' : '#e53e3e',
+                    background:
+                      evt.event_type === 'DEPOSIT' ? '#e6fffa' :
+                        evt.event_type === 'WITHDRAW' ? '#fff5f5' :
+                          '#f3e8ff',
+                    color:
+                      evt.event_type === 'DEPOSIT' ? '#00bfa5' :
+                        evt.event_type === 'WITHDRAW' ? '#e53e3e' :
+                          '#9333ea',
                     padding: '4px 8px',
                     borderRadius: '4px',
                     fontWeight: 'bold',
                     fontSize: '12px'
                   }}>
-                    {evt.event_type}
+                    {evt.event_type === 'YIELD' ? '💰 Profit (YIELD)' : evt.event_type}
                   </span>
                 </td>
                 <td style={{ padding: '8px', fontFamily: 'monospace' }}>
@@ -72,8 +77,8 @@ export const EventsTable = () => {
                 </td>
                 <td style={{ padding: '8px' }}>{evt.block_number}</td>
                 <td style={{ padding: '8px' }}>
-                  <a 
-                    href="#" 
+                  <a
+                    href="#"
                     title={evt.tx_hash}
                     style={{ textDecoration: 'none', color: '#3182ce' }}
                   >
