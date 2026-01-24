@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"defi-demo/bindings"
 	"fmt"
 	"log"
@@ -19,8 +20,13 @@ import (
 // 💾 Database model
 type VaultEvent struct {
 	gorm.Model
-	TxHash      string  `gorm:"index" json:"tx_hash"`
-	BlockNumber uint64  `json:"block_number"`
+	TxHash      string `gorm:"index" json:"tx_hash"`
+	BlockNumber uint64 `json:"block_number"`
+
+	BlockHash   string `json:"block_hash"`
+	ParentHash  string `json:"parent_hash"`
+	IsConfirmed bool   `json:"is_confirmed"`
+
 	EventType   string  `json:"event_type"`
 	UserAddress string  `json:"user_address"`
 	AmountWei   string  `json:"-"`
@@ -30,7 +36,7 @@ type VaultEvent struct {
 var contractAddress = common.HexToAddress("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0")
 
 func main() {
-	dsn := "host=localhost user=postgres password=123456 dbname=defi_db port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+	dsn := "host=localhost user=postgres password=123456 dbname=defi_db port=5432 sslmode=disable TimeZone=Asia/Tokyo"
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("❌ Database connection failed: %v", err)
@@ -50,9 +56,11 @@ func main() {
 
 	// --- 2. Start background threads ---
 	// A. Event Listener (Handles real-time deposits/withdrawals)
-	go startBlockchainListener(db, client, vault)
+	// go startBlockchainListener(db, client, vault)
 
-	// B. ✅ New: Reconciliation Bot (Fixes data discrepancies)
+	go startBlockScanner(db, client, vault)
+
+	// B. ✅ New: Reconciliation Bot (Fixes yield data)
 	go startReconciler(db, vault)
 
 	// --- 3. Start API ---
@@ -202,5 +210,133 @@ func saveEvent(db *gorm.DB, eventType string, txHash string, blockNum uint64, us
 	if count == 0 {
 		db.Create(&record)
 		fmt.Printf("\n💰 [Listener] New Event: %s | %.2f\n", eventType, humanAmount)
+	}
+}
+
+// ---------------------------------------------------------
+// 🚀 New Core Logic: High-Performance Block Scanner (with Reorg Handling)
+// ---------------------------------------------------------
+func startBlockScanner(db *gorm.DB, client *ethclient.Client, vault *bindings.Vault) {
+	fmt.Println("🚀 Block Scanner Started...")
+	ticker := time.NewTicker(2 * time.Second)
+
+	const ConfirmationDepth = 6
+
+	for range ticker.C {
+		// 1. Get the latest block height on the chain
+		latestHeader, err := client.HeaderByNumber(context.Background(), nil)
+		if err != nil {
+			continue
+		}
+		chainHead := latestHeader.Number.Uint64()
+
+		// 2. Get the last synced block height from the database
+		var lastEvent VaultEvent
+		db.Order("block_number desc").First(&lastEvent)
+
+		targetBlock := lastEvent.BlockNumber + 1
+		if lastEvent.BlockNumber == 0 {
+			targetBlock = chainHead
+		}
+
+		if targetBlock > chainHead {
+			continue // Already synced to the latest, wait for new blocks
+		}
+
+		// 3. ✨ Core Logic: Get target block info and perform Reorg check ✨
+		targetHeader, err := client.HeaderByNumber(context.Background(), big.NewInt(int64(targetBlock)))
+		if err != nil {
+			continue
+		}
+
+		// Check: Is the "Parent Hash" of the current target block equal to the "Hash of the previous block" in the database?
+		if lastEvent.BlockNumber > 0 && targetHeader.ParentHash.Hex() != lastEvent.BlockHash {
+			fmt.Printf("⚠️ CRITICAL WARNING: On-chain Reorg detected! Target Block %d\n", targetBlock)
+			fmt.Printf("   On-chain Parent Hash: %s\n", targetHeader.ParentHash.Hex())
+			fmt.Printf("   Local Recorded Hash: %s\n", lastEvent.BlockHash)
+
+			// Execute rollback: Delete the inconsistent previous block data in the database
+			db.Where("block_number = ?", lastEvent.BlockNumber).Delete(&VaultEvent{})
+			fmt.Printf("   ✅ Rolled back data for block %d, preparing to rescan...\n", lastEvent.BlockNumber)
+			continue // The next loop will rescan lastEvent.BlockNumber
+		}
+
+		// 4. Hashes match, start processing the contract logs (Events) for this block
+		// FilterLogs here will fetch all Deposits/Withdrawals within this block
+		processLogsInBlock(db, client, vault, targetBlock, targetHeader.Hash().Hex(), targetHeader.ParentHash.Hex(), chainHead)
+	}
+}
+
+// ---------------------------------------------------------
+// 📦 Helper Function: Parse logs for a specific block and save to database
+// ---------------------------------------------------------
+func processLogsInBlock(db *gorm.DB, client *ethclient.Client, vault *bindings.Vault, blockNum uint64, blockHash string, parentHash string, chainHead uint64) {
+	// ✅ Calculate if it's a "confirmed" secure block
+	isConfirmed := (chainHead - blockNum) >= 6
+
+	// Build filter conditions: query data only for this specific block
+	filterOpts := &bind.FilterOpts{
+		Start:   blockNum,
+		End:     &blockNum,
+		Context: context.Background(),
+	}
+
+	// 1. Fetch Deposit events within this block
+	depIter, err := vault.FilterDeposit(filterOpts, nil, nil)
+	if err == nil {
+		for depIter.Next() {
+			event := depIter.Event
+			saveEventData(db, "DEPOSIT", event.Raw.TxHash.Hex(), blockNum, blockHash, parentHash, isConfirmed, event.Owner.Hex(), event.Assets)
+		}
+	}
+
+	// 2. Fetch Withdraw events within this block
+	withIter, err := vault.FilterWithdraw(filterOpts, nil, nil, nil)
+	if err == nil {
+		for withIter.Next() {
+			event := withIter.Event
+			saveEventData(db, "WITHDRAW", event.Raw.TxHash.Hex(), blockNum, blockHash, parentHash, isConfirmed, event.Owner.Hex(), event.Assets)
+		}
+	}
+
+	// Print progress in the terminal for monitoring
+	status := "🟡 Pending (Unconfirmed)"
+	if isConfirmed {
+		status = "🟢 Confirmed"
+	}
+	fmt.Printf("📦 Synced block %d completed [%s]\n", blockNum, status)
+}
+
+// ---------------------------------------------------------
+// 💾 Helper Function: Save cleaned data into PostgreSQL
+// ---------------------------------------------------------
+func saveEventData(db *gorm.DB, eventType string, txHash string, blockNum uint64, blockHash string, parentHash string, isConfirmed bool, user string, assets *big.Int) {
+	// Amount conversion Wei -> USDT (Human Readable)
+	amountFloat := new(big.Float).SetInt(assets)
+	humanAmount, _ := new(big.Float).Quo(amountFloat, big.NewFloat(1e18)).Float64()
+
+	// Build database record
+	record := VaultEvent{
+		TxHash:      txHash,
+		BlockNumber: blockNum,
+		BlockHash:   blockHash,
+		ParentHash:  parentHash,
+		IsConfirmed: isConfirmed,
+		EventType:   eventType,
+		UserAddress: user,
+		AmountWei:   assets.String(),
+		AmountHuman: humanAmount,
+	}
+
+	// Deduplication logic: On-chain transaction replacement may occur, ensure database uniqueness
+	var count int64
+	db.Model(&VaultEvent{}).Where("tx_hash = ? AND event_type = ?", txHash, eventType).Count(&count)
+	if count == 0 {
+		db.Create(&record)
+		statusIcon := "⏳"
+		if isConfirmed {
+			statusIcon = "✅"
+		}
+		fmt.Printf("\n💰 [Scanner] Saved new data: %s | USDT: %.2f | Status: %s\n", eventType, humanAmount, statusIcon)
 	}
 }
