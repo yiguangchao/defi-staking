@@ -3,6 +3,7 @@ import { EventsTable } from './components/EventsTable';
 import { ActionPanel } from './components/ActionPanel';
 import { VaultInfo } from './components/VaultInfo';
 import { TVLChart } from './components/TVLChart';
+import { Toaster } from 'react-hot-toast'; 
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
       background: '#f8fafc',
       minHeight: '100vh'
     }}>
+      <Toaster position="top-center" reverseOrder={false} />
       <h1 style={{ marginBottom: '10px' }}>🏦 My DeFi Vault</h1>
       <p style={{ color: '#64748b', marginBottom: '30px' }}>Web3 full-stack demo (Solidity + Go + React)</p>
       
