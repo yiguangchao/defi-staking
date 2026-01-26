@@ -1,4 +1,4 @@
-# 🏦 DeFi Staking & Yield Aggregator (ERC-4626)
+# 🏦 DeFi Staking & Yield Aggregator (ERC-4626) 
 
 ![Solidity](https://img.shields.io/badge/Solidity-%5E0.8.20-363636?style=flat&logo=solidity)
 ![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)
