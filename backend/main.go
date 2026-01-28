@@ -33,6 +33,12 @@ type VaultEvent struct {
 	AmountHuman float64 `json:"amount_usdt"`
 }
 
+type UserReward struct {
+	UserAddress string    `gorm:"primaryKey" json:"user_address"` // Wallet address
+	Points      float64   `json:"points"`                         // Calculated points
+	UpdatedAt   time.Time `json:"last_updated"`
+}
+
 var contractAddress = common.HexToAddress("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0")
 
 func main() {
@@ -41,7 +47,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("❌ Database connection failed: %v", err)
 	}
-	db.AutoMigrate(&VaultEvent{})
+	db.AutoMigrate(&VaultEvent{}, &UserReward{})
 
 	// Connect to RPC
 	client, err := ethclient.Dial("ws://127.0.0.1:8545")
@@ -339,4 +345,95 @@ func saveEventData(db *gorm.DB, eventType string, txHash string, blockNum uint64
 		}
 		fmt.Printf("\n💰 [Scanner] Saved new data: %s | USDT: %.2f | Status: %s\n", eventType, humanAmount, statusIcon)
 	}
+}
+
+// ---------------------------------------------------------
+// 🧮 Core Logic: Off-chain Reward Engine (Liquidity Mining)
+// ---------------------------------------------------------
+func startRewardEngine(db *gorm.DB, client *ethclient.Client) {
+	fmt.Println("🧮 Reward Engine started: Calculating user points...")
+
+	ticker := time.NewTicker(10 * time.Second) // Run every 10 seconds
+	for range ticker.C {
+		calculateAllRewards(db, client)
+	}
+}
+
+func calculateAllRewards(db *gorm.DB, client *ethclient.Client) {
+	// 1. Get current chain height (to calculate points up to NOW)
+	header, err := client.HeaderByNumber(context.Background(), nil)
+	if err != nil {
+		log.Printf("🧮 Failed to get latest block: %v", err)
+		return
+	}
+	currentBlock := header.Number.Uint64()
+
+	// 2. Find all unique users who have ever interacted
+	var userAddresses []string
+	db.Model(&VaultEvent{}).Distinct("user_address").Pluck("user_address", &userAddresses)
+
+	// 3. Iterate through each user and calculate their score
+	for _, address := range userAddresses {
+		if address == "" || address == "0x0000000000000000000000000000000000000000" {
+			continue
+		}
+		points := calculateUserPoints(db, address, currentBlock)
+
+		// 4. Update the DB
+		reward := UserReward{
+			UserAddress: address,
+			Points:      points,
+			UpdatedAt:   time.Now(),
+		}
+		db.Save(&reward) // Insert or Update
+	}
+
+	fmt.Printf("🧮 Points updated for %d users at block %d\n", len(userAddresses), currentBlock)
+}
+
+// 🧠 The Math: Replay history to calculate "Balance * Duration"
+func calculateUserPoints(db *gorm.DB, userAddress string, currentBlock uint64) float64 {
+	var events []VaultEvent
+	// Fetch all user events ordered by time (block number)
+	db.Where("user_address = ?", userAddress).Order("block_number asc").Find(&events)
+
+	var totalPoints float64 = 0
+	var currentBalance float64 = 0
+	var lastBlock uint64 = 0
+
+	for _, event := range events {
+		// Initialize start block
+		if lastBlock == 0 {
+			lastBlock = event.BlockNumber
+		}
+
+		// Calculate duration since last event
+		blockDelta := float64(event.BlockNumber - lastBlock)
+
+		// Accumulate points: Balance * Duration
+		if blockDelta > 0 {
+			totalPoints += currentBalance * blockDelta
+		}
+
+		// Update balance based on event type
+		if event.EventType == "DEPOSIT" {
+			currentBalance += event.AmountHuman
+		} else if event.EventType == "WITHDRAW" {
+			currentBalance -= event.AmountHuman
+			if currentBalance < 0 {
+				currentBalance = 0 // Safety check
+			}
+		}
+
+		// Move time forward
+		lastBlock = event.BlockNumber
+	}
+
+	// Calculate points from the LAST event until NOW (Pending points)
+	if currentBlock > lastBlock && currentBalance > 0 {
+		blockDelta := float64(currentBlock - lastBlock)
+		totalPoints += currentBalance * blockDelta
+	}
+
+	return totalPoints
 }

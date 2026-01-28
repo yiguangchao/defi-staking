@@ -78,3 +78,40 @@ graph TD
     Logic -- "6. 计算: 100 * (110/100) = 110" --> Safe
     Safe -- "7. 提现 110 USDT" --> U
 ```
+```mermaid
+------------------------------------
+```
+```mermaid
+graph TD
+    subgraph Client ["前端 (React + Wagmi)"]
+        UI["用户界面"]
+        Wallet["MetaMask/WalletConnect"]
+    end
+
+    subgraph Blockchain ["区块链层 (Anvil/Ethereum)"]
+        %% 给括号内容加上引号，避免解析错误
+        Vault["Vault.sol (ERC4626)"]
+        Strategy["Strategy.sol"]
+        Asset["USDT (ERC20)"]
+        Events["事件日志: Deposit/Withdraw"]
+    end
+
+    subgraph Backend ["后端服务 (Go)"]
+        Indexer["事件索引器 (Indexer)"]
+        Reconciler["对账服务 (Reconciler)"]
+        API["API 服务 (Gin/Echo)"]
+    end
+
+    %% 交互流
+    UI -->|"1. 读/写合约"| Wallet
+    Wallet -->|"2. 发送交易"| Vault
+    Vault -->|"3. 资金划转"| Strategy
+    Strategy -.->|"依赖"| Asset
+    Vault -->|"4. Emit Events"| Events
+    
+    %% 跨层级数据流
+    Events -.->|"5. 监听 (JSON-RPC)"| Indexer
+    Indexer -->|"6. 解析 & 存储"| Reconciler
+    Reconciler -->|"7. 更新状态"| API
+    API -->|"8. 数据展示 (REST/GQL)"| UI
+```
