@@ -20,6 +20,8 @@ sequenceDiagram
     Chain->>Indexer: 3. 监听到 Deposit 事件
     Indexer->>DB: 4. 写入: insert into deposits ...
     
+
+    
     User->>Frontend: 5. 打开网页 "查看我的收益"
     Frontend->>API: 6. 请求: GET /api/user/balance
     API->>DB: 查询历史记录 & 计算 APY
@@ -83,35 +85,64 @@ graph TD
 ```
 ```mermaid
 graph TD
+    %% 前端层
     subgraph Client ["前端 (React + Wagmi)"]
         UI["用户界面"]
-        Wallet["MetaMask/WalletConnect"]
+        Wallet["MetaMask"]
+        ProofFetcher["API: 获取 Merkle Proof"]
     end
 
-    subgraph Blockchain ["区块链层 (Anvil/Ethereum)"]
-        %% 给括号内容加上引号，避免解析错误
-        Vault["Vault.sol (ERC4626)"]
-        Strategy["Strategy.sol"]
-        Asset["USDT (ERC20)"]
-        Events["事件日志: Deposit/Withdraw"]
+    %% 区块链层
+    subgraph Blockchain ["区块链层 (Anvil)"]
+        subgraph VaultSystem ["存钱系统"]
+            Vault["Vault.sol (ERC4626)"]
+            Strategy["Strategy.sol"]
+        end
+        
+        subgraph RewardSystem ["发奖系统 (新增)"]
+            Distributor["MerkleDistributor.sol"]
+            RewardToken["Reward Token (ERC20)"]
+        end
     end
 
-    subgraph Backend ["后端服务 (Go)"]
-        Indexer["事件索引器 (Indexer)"]
-        Reconciler["对账服务 (Reconciler)"]
-        API["API 服务 (Gin/Echo)"]
+    %% 后端层
+    subgraph Backend ["Go 后端服务"]
+        Indexer["事件索引器"]
+        DB[("PostgreSQL")]
+        
+        subgraph Computation ["核心计算层 (新增)"]
+            RewardEngine["积分计算引擎"]
+            MerkleGen["Merkle Tree 生成器"]
+        end
+        
+        API["API 服务"]
     end
 
-    %% 交互流
-    UI -->|"1. 读/写合约"| Wallet
-    Wallet -->|"2. 发送交易"| Vault
-    Vault -->|"3. 资金划转"| Strategy
-    Strategy -.->|"依赖"| Asset
-    Vault -->|"4. Emit Events"| Events
+    %% --- 交互流 ---
     
-    %% 跨层级数据流
-    Events -.->|"5. 监听 (JSON-RPC)"| Indexer
-    Indexer -->|"6. 解析 & 存储"| Reconciler
-    Reconciler -->|"7. 更新状态"| API
-    API -->|"8. 数据展示 (REST/GQL)"| UI
+    %% 1. 基础存取款
+    UI -->|"1. 存款/取款"| Vault
+    Vault -.->|"2. 抛出事件"| Indexer
+    Indexer -->|"3. 存入历史"| DB
+    
+    %% 2. 积分计算 (我们刚写的代码)
+    DB -->|"4. 读取历史"| RewardEngine
+    RewardEngine -->|"5. 算出积分"| DB
+    
+    %% 3. 生成 Merkle Tree (下一步要做的事)
+    DB -->|"6. 所有用户积分"| MerkleGen
+    MerkleGen -->|"7. 生成 Root & Proofs"| DB
+    
+    %% 4. 管理员上链 (关键闭环)
+    MerkleGen -.->|"8. Admin: 上传 Root"| Distributor
+    
+    %% 5. 用户领奖
+    UI -->|"9. 请求 Proof"| API
+    API -->|"10. 返回 Proof"| UI
+    UI -->|"11. Submit Proof & Claim"| Distributor
+    Distributor -->|"12. 发放代币"| Wallet
+    
+    %% 样式美化
+    style RewardSystem fill:#ffefdb,stroke:#f66
+    style Computation fill:#e1f5fe,stroke:#0277bd
 ```
