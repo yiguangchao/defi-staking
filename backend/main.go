@@ -64,8 +64,7 @@ func main() {
 	// A. Event Listener (Handles real-time deposits/withdrawals)
 	// go startBlockchainListener(db, client, vault)
 
-	go startBlockScanner(db, client, vault)
-
+	go startSmartIndexer(db, client, vault)
 	// B. ✅ New: Reconciliation Bot (Fixes yield data)
 	go startReconciler(db, vault)
 
@@ -81,7 +80,7 @@ func main() {
 
 	r.GET("/api/events", func(c *gin.Context) {
 		var events []VaultEvent
-		db.Order("id desc").Find(&events)
+		db.Where("event_type IN ?", []string{"DEPOSIT", "WITHDRAW", "YIELD"}).Order("id desc").Find(&events)
 		c.JSON(200, gin.H{"code": 200, "data": events})
 	})
 
@@ -436,4 +435,136 @@ func calculateUserPoints(db *gorm.DB, userAddress string, currentBlock uint64) f
 	}
 
 	return totalPoints
+}
+
+// ---------------------------------------------------------
+// Upgraded: Smart Dual-Mode Indexer
+// Includes: 1. Batch Backfill 2. Real-time Reorg Protection
+// ---------------------------------------------------------
+func startSmartIndexer(db *gorm.DB, client *ethclient.Client, vault *bindings.Vault) {
+	fmt.Println("🚀 Smart Indexer Started...")
+
+	// Polling interval (in normal mode)
+	ticker := time.NewTicker(3 * time.Second)
+
+	// Batch sync step size (how many blocks to query at once in catch-up mode)
+	const BatchSize = 2000
+
+	for range ticker.C {
+		// 1. Get the latest block height from chain (Target)
+		header, err := client.HeaderByNumber(context.Background(), nil)
+		if err != nil {
+			log.Printf("⚠️ Network Error: Failed to get latest block: %v", err)
+			continue
+		}
+		chainHead := header.Number.Uint64()
+
+		// 2. Get the synced height from database (Current)
+		var lastEvent VaultEvent
+		db.Order("block_number desc").First(&lastEvent)
+
+		// If DB is empty, start from chain head, or you can hardcode a deployment block height
+		currentDBBlock := lastEvent.BlockNumber
+		if currentDBBlock == 0 {
+			currentDBBlock = chainHead - 100
+			if currentDBBlock < 0 {
+				currentDBBlock = 0
+			}
+		}
+
+		// Calculate lag
+		diff := chainHead - currentDBBlock
+
+		// --- Mode Switching Decision ---
+		if diff > 10 {
+			// 🏎️ [Backfill Mode]: Lagging behind by more than 10 blocks, enable batch sync
+			// Calculate the end block for this batch
+			endBlock := currentDBBlock + BatchSize
+			if endBlock > chainHead {
+				endBlock = chainHead
+			}
+
+			fmt.Printf("⏩ [Backfill Mode] Batch syncing blocks: %d -> %d (Lag: %d)\n", currentDBBlock+1, endBlock, diff)
+
+			// Execute batch query
+			processBatchLogs(db, vault, currentDBBlock+1, endBlock)
+
+		} else if diff > 0 {
+			// 🛡️ [Real-time Mode]: Small lag, sync block by block and check for Reorg
+			targetBlock := currentDBBlock + 1
+
+			// Get target block header (to retrieve ParentHash)
+			targetHeader, err := client.HeaderByNumber(context.Background(), big.NewInt(int64(targetBlock)))
+			if err != nil {
+				continue
+			}
+
+			// ✨ Reorg Check ✨
+			// If the ParentHash of the current block does not match the Hash of the last block in DB, a fork has occurred
+			if lastEvent.BlockNumber > 0 && targetHeader.ParentHash.Hex() != lastEvent.BlockHash {
+				fmt.Printf("🚨 [CRITICAL] Chain Reorg detected! Rolling back database...\n")
+				// Delete data of the last block in DB; the correct block will be synced in the next loop
+				db.Where("block_number = ?", lastEvent.BlockNumber).Delete(&VaultEvent{})
+				continue
+			}
+
+			// Everything normal, process this block
+			processLogsInBlock(db, vault, targetBlock, targetHeader.Hash().Hex(), targetHeader.ParentHash.Hex(), chainHead)
+
+		} else {
+			fmt.Println("💤 Synced to latest...")
+		}
+	}
+}
+
+// ---------------------------------------------------------
+// 📦 Helper: Batch process logs (used in backfill mode)
+// ---------------------------------------------------------
+func processBatchLogs(db *gorm.DB, vault *bindings.Vault, start uint64, end uint64) {
+	// Construct filter: Query range [start, end]
+	filterOpts := &bind.FilterOpts{
+		Start:   start,
+		End:     &end,
+		Context: context.Background(),
+	}
+
+	// 1. Fetch Deposit
+	itr, err := vault.FilterDeposit(filterOpts, nil, nil)
+	if err != nil {
+		log.Printf("❌ Batch query Deposit failed: %v", err)
+		return
+	}
+
+	count := 0
+	for itr.Next() {
+		evt := itr.Event
+		// In batch mode, we need to get blockHash from event.Raw
+		saveEventData(db, "DEPOSIT", evt.Raw.TxHash.Hex(), evt.Raw.BlockNumber, evt.Raw.BlockHash.Hex(), "", true, evt.Owner.Hex(), evt.Assets)
+		count++
+	}
+
+	// 2. Fetch Withdraw (similarly)
+	wItr, err := vault.FilterWithdraw(filterOpts, nil, nil, nil)
+	if err == nil {
+		for wItr.Next() {
+			evt := wItr.Event
+			saveEventData(db, "WITHDRAW", evt.Raw.TxHash.Hex(), evt.Raw.BlockNumber, evt.Raw.BlockHash.Hex(), "", true, evt.Owner.Hex(), evt.Assets)
+			count++
+		}
+	}
+
+	// Optimization to prevent infinite loop on empty blocks: if range is large but no events, manually insert a system log to advance block_number
+	if count == 0 {
+		// Insert a placeholder record to push block_number forward and prevent repeated scanning of empty block regions
+		// Note: This record should not be displayed by frontend; user_address can be set to 0x0
+		sysEvent := VaultEvent{
+			EventType:   "HEARTBEAT",
+			BlockNumber: end,
+			UserAddress: "0x0000000000000000000000000000000000000000",
+			TxHash:      fmt.Sprintf("SYNC_ANCHOR_%d", end),
+		}
+		db.Create(&sysEvent)
+	}
+
+	fmt.Printf("📦 Batch sync complete [%d -> %d] Found %d transactions\n", start, end, count)
 }
