@@ -61,12 +61,14 @@ func main() {
 	}
 
 	// --- 2. Start background threads ---
-	// A. Event Listener (Handles real-time deposits/withdrawals)
-	// go startBlockchainListener(db, client, vault)
-
+	// A. Intelligent indexer (responsible for capturing deposits and withdrawals)
 	go startSmartIndexer(db, client, vault)
-	// B. ✅ New: Reconciliation Bot (Fixes yield data)
+
+	// B. Reconciliation robot (responsible for discovering profits)
 	go startReconciler(db, vault)
+
+	// C. Points calculation engine (responsible for calculating points - preparing for award)
+	go startRewardEngine(db, client)
 
 	// --- 3. Start API ---
 	r := gin.Default()
@@ -509,8 +511,7 @@ func startSmartIndexer(db *gorm.DB, client *ethclient.Client, vault *bindings.Va
 			}
 
 			// Everything normal, process this block
-			processLogsInBlock(db, vault, targetBlock, targetHeader.Hash().Hex(), targetHeader.ParentHash.Hex(), chainHead)
-
+			processLogsInBlock(db, client, vault, targetBlock, targetHeader.Hash().Hex(), targetHeader.ParentHash.Hex(), chainHead)
 		} else {
 			fmt.Println("💤 Synced to latest...")
 		}
