@@ -81,9 +81,6 @@ graph TD
     Safe -- "7. 提现 110 USDT" --> U
 ```
 ```mermaid
-------------------------------------
-```
-```mermaid
 graph TD
     %% 前端层
     subgraph Client ["前端 (React + Wagmi)"]
@@ -145,4 +142,136 @@ graph TD
     %% 样式美化
     style RewardSystem fill:#ffefdb,stroke:#f66
     style Computation fill:#e1f5fe,stroke:#0277bd
+```
+```mermaid
+graph TD
+    %% 定义样式
+    classDef user fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef front fill:#e1f5fe,stroke:#0277bd,stroke-width:2px;
+    classDef chain fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
+    classDef back fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef db fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
+
+    User(("🤵 用户 / User")):::user
+
+    %% 前端层
+    subgraph Client ["🖥️ 前端 / Client (React + Wagmi)"]
+        UI["界面 UI Components"]:::front
+        Wallet["Wallet Connect"]:::front
+        API_Caller["API Fetcher"]:::front
+        
+        UI --> Wallet
+        UI --> API_Caller
+    end
+
+    User -->|"交互: 存款/取款"| UI
+
+    %% 区块链层
+    subgraph Blockchain ["⛓️ 区块链 / Blockchain (Anvil/Ethereum)"]
+        Token["USDT Contract"]:::chain
+        Vault["Vault Contract (ERC4626)"]:::chain
+        Strategy["Strategy Contract"]:::chain
+        Events["📜 Event Logs"]:::chain
+
+        Wallet -->|"1. Approve/Transfer"| Token
+        Wallet -->|"2. Deposit/Withdraw"| Vault
+        Vault <-->|"Delegate Funds"| Strategy
+        Vault -.->|"Emit"| Events
+    end
+
+    %% 后端层
+    subgraph Backend ["⚙️ 后端 / Backend (Go)"]
+        API_Server["Gin API Server"]:::back
+        Scanner["🛡️ Block Scanner<br/>(防回滚索引器)"]:::back
+        Reconciler["🤖 Reconciler<br/>(对账/收益发现)"]:::back
+        RewardEngine["🧮 Reward Engine<br/>(积分计算)"]:::back
+
+        Scanner -->|"监听"| Events
+        Scanner -->|"检查 ParentHash"| Blockchain
+        Reconciler -->|"查询 TotalAssets"| Vault
+    end
+
+    %% 数据库层
+    subgraph Database ["💾 数据库 / Database (PostgreSQL)"]
+        DB[("Vault Events & User Rewards")]:::db
+    end
+
+    %% 数据流向
+    Scanner == "写入交易记录" ==> DB
+    Reconciler == "写入 YIELD 记录" ==> DB
+    RewardEngine -.->|"读取"| DB
+    RewardEngine == "更新积分" ==> DB
+    
+    API_Caller -.->|"请求历史/图表"| API_Server
+    API_Server -.->|"读取"| DB
+
+    %% 隐性收益逻辑
+    User -.->|"管理员模拟: 直接转账"| Strategy
+    Strategy -.->|"余额增加"| Reconciler
+```
+```mermaid
+graph TD
+    %% 角色定义
+    User((🤵 用户 / User))
+    
+    %% 1. 前端层 (React)
+    subgraph Frontend [📱 前端 React]
+        UI[页面交互]
+        Wallet[MetaMask 连接]
+        Chart[数据图表]
+    end
+
+    %% 2. 区块链层 (Solidity)
+    subgraph Blockchain ["⛓️ 区块链 (Foundry/Anvil)"]
+        Vault["💰 金库合约 (Vault.sol)"]
+        Aave["🏦 Aave 协议 (生息)"]
+        
+        Vault <-->|存钱生息| Aave
+    end
+
+    %% 3. 后端层 (Golang)
+    subgraph Backend [⚙️ 后端 Golang]
+        Listener["👂 链上监听 (Listener)"]
+        Reconciler["🤖 对账/审计 (Reconciler)"]
+        API["🚀 数据接口 (API)"]
+        DB[(💾 数据库 PostgreSQL)]
+        
+        Listener -->|存入数据| DB
+        Reconciler -->|读写校对| DB
+        API -.->|读取数据| DB
+    end
+
+    %% 交互连线
+    %% A. 资金流 (写操作) - 不经过后端
+    User -->|1. 点击存款| UI
+    UI -->|2. 唤起钱包| Wallet
+    Wallet == 3. 发送交易 (Tx) ==> Vault
+
+    %% B. 数据流 (读操作) - 经过后端
+    Vault -.->|"4. 发出事件 (Event)"| Listener
+    Reconciler -.->|5. 查询余额| Vault
+    UI -.->|6. 请求 API| API
+    API -.->|7. 返回历史/图表| Chart
+```
+```mermaid
+graph TD
+    subgraph Done [✅ 已完成]
+        Vault[ERC4626 金库]
+        Aave[Aave 策略集成]
+        GoScan[Go 事件监听]
+        GoRec[Go 资金对账]
+        React[前端存取款]
+        Local[本地 Fork 环境]
+    end
+
+    subgraph ToDo [❌ 待完成 - 建议顺序]
+        Backfill[1. 断点续传/回溯]
+        Merkle[2. Merkle Tree 领奖]
+        Testnet[3. 部署 Sepolia 测试网]
+        Keeper[4. 自动化 Harvest]
+    end
+
+    Done --> Backfill
+    Backfill --> Merkle
+    Merkle --> Testnet
 ```
