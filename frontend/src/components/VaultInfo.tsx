@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { formatEther, parseEther } from 'viem';
-import { VAULT_ADDRESS, VAULT_ABI, ERC20_ABI } from '../../constants';
+import { VAULT_ADDRESS, VAULT_ABI, ERC20_ABI } from '../constants';
 
 export const VaultInfo = () => {
   // 1. Total Assets

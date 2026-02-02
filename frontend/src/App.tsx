@@ -3,6 +3,7 @@ import { EventsTable } from './components/EventsTable';
 import { ActionPanel } from './components/ActionPanel';
 import { VaultInfo } from './components/VaultInfo';
 import { TVLChart } from './components/TVLChart';
+import { RewardCard } from './components/RewardCard';
 import { Toaster } from 'react-hot-toast'; 
 
 function App() {
@@ -29,16 +30,14 @@ function App() {
 
       {/* Two core component containers */}
       <div style={{ width: '100%', maxWidth: '600px' }}>
-        {/* 1. Top board */}
         <VaultInfo />
 
-        {/* 2. Action Panel */}
+        <RewardCard />
+
         <ActionPanel />
         
-        {/* 3. data table */}
         <EventsTable />
 
-        {/* 4. TVL Chart */}
         <TVLChart />
       </div>
 
