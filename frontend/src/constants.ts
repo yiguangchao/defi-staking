@@ -22,3 +22,25 @@ export const ERC20_ABI = [
   //Ordinary transfer function (used to simulate sending money)
   "function transfer(address to, uint256 amount) returns (bool)"
 ] as const;
+
+export const DISTRIBUTOR_ADDRESS = "0x...Fill in your address..."; 
+
+export const DISTRIBUTOR_ABI = [
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "amount", "type": "uint256" },
+      { "internalType": "bytes32[]", "name": "merkleProof", "type": "bytes32[]" }
+    ],
+    "name": "claim",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "index", "type": "uint256" }, { "internalType": "address", "name": "account", "type": "address" }],
+    "name": "isClaimed",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+] as const;

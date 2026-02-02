@@ -8,7 +8,7 @@ import {
 } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 import toast from 'react-hot-toast';
-import { VAULT_ADDRESS, VAULT_ABI, ERC20_ABI } from '../../constants';
+import { VAULT_ADDRESS, VAULT_ABI, ERC20_ABI } from '../constants';
 
 export const ActionPanel = () => {
   const [amount, setAmount] = useState('');
