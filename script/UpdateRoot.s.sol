@@ -13,7 +13,7 @@ contract UpdateRoot is Script {
     function run() external {
         uint256 deployerPrivateKey = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
-        bytes32 newRoot = 0x018008bfb33d285247A21d44E50697654f754e63;
+        bytes32 newRoot = 0x000000000000000000000000018008bfb33d285247A21d44E50697654f754e63;
 
         vm.startBroadcast(deployerPrivateKey);
 
