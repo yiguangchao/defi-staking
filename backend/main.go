@@ -39,7 +39,7 @@ type UserReward struct {
 	UpdatedAt   time.Time `json:"last_updated"`
 }
 
-var contractAddress = common.HexToAddress("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0")
+var contractAddress = common.HexToAddress("0xa3A1ca39416cffE0536700F1B497bFf66362109D")
 
 func main() {
 	dsn := "host=localhost user=postgres password=123456 dbname=defi_db port=5432 sslmode=disable TimeZone=Asia/Tokyo"
@@ -450,7 +450,7 @@ func startSmartIndexer(db *gorm.DB, client *ethclient.Client, vault *bindings.Va
 	ticker := time.NewTicker(3 * time.Second)
 
 	// Batch sync step size (how many blocks to query at once in catch-up mode)
-	const BatchSize = 2000
+	const BatchSize = 10
 
 	for range ticker.C {
 		// 1. Get the latest block height from chain (Target)
@@ -468,7 +468,7 @@ func startSmartIndexer(db *gorm.DB, client *ethclient.Client, vault *bindings.Va
 		// If DB is empty, start from chain head, or you can hardcode a deployment block height
 		currentDBBlock := lastEvent.BlockNumber
 		if currentDBBlock == 0 {
-			currentDBBlock = chainHead - 100
+			// currentDBBlock = chainHead - 100
 			if currentDBBlock < 0 {
 				currentDBBlock = 0
 			}

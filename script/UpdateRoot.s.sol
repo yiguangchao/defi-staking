@@ -8,12 +8,12 @@ interface IDistributor {
 }
 
 contract UpdateRoot is Script {
-    address constant DISTRIBUTOR = 0x018008bfb33d285247A21d44E50697654f754e63;
+    address constant DISTRIBUTOR = 0xa3A1ca39416cffE0536700F1B497bFf66362109D;
 
     function run() external {
         uint256 deployerPrivateKey = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
-        bytes32 newRoot = 0x000000000000000000000000018008bfb33d285247A21d44E50697654f754e63;
+        bytes32 newRoot = keccak256(abi.encodePacked("test new root"));
 
         vm.startBroadcast(deployerPrivateKey);
 
