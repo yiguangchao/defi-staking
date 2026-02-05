@@ -1,143 +1,197 @@
-# 🏦 DeFi Staking & Yield Aggregator (ERC-4626) 
+# 🏦 DeFi Staking & Yield Aggregator (Full Stack)
 
-![Solidity](https://img.shields.io/badge/Solidity-%5E0.8.20-363636?style=flat&logo=solidity)
-![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)
-![React](https://img.shields.io/badge/React-18.x-61DAFB?style=flat&logo=react)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-336791?style=flat&logo=postgresql)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Solidity](https://img.shields.io/badge/Solidity-^0.8.20-363636)
+![Go](https://img.shields.io/badge/Go-1.21+-00ADD8)
+![React](https://img.shields.io/badge/React-18-61DAFB)
+![Foundry](https://img.shields.io/badge/Foundry-Framework-orange)
 
-A production-grade, full-stack DeFi Vault platform built on the **ERC-4626 standard**. 
-
-This project seamlessly integrates a Smart Contract Vault, a high-performance Go Indexer, and a React-based DApp. It provides users with a secure and real-time yield farming experience by routing idle assets to **Aave V3** to generate passive income.
-
-## ✨ Key Features
-
-* **💎 ERC-4626 Standardized Vault**: Fully compliant with the Tokenized Vault Standard, utilizing OpenZeppelin V5 for robust inflation attack resistance (Virtual Shares).
-* **📈 Real Yield via Aave V3**: Deposits are automatically routed to Aave V3 through a dedicated `AaveStrategy`. Features dynamic `PoolAddressesProvider` for resistance against Aave protocol upgrades.
-* **⚡ High-Performance Go Indexer**: A backend listener using `go-ethereum` and WebSockets to capture on-chain events (`Deposit`, `Withdraw`) in real-time.
-* **🤖 Smart Reconciler**: An automated background worker that polls the blockchain every 5 seconds to synchronize passive yield (money-making-money) that doesn't emit standard EVM events.
-* **🖥️ Reactive DApp Dashboard**: A React frontend featuring real-time TVL (Total Value Locked) charts, share price tracking, and smooth `Approve-then-Deposit` workflows using Wagmi and RainbowKit.
+An industrial-grade, full-stack DeFi project demonstration. It implements an **ERC-4626** standard vault, integrates **Aave V3** for real-world yield generation, and features a high-performance **Go Backend Indexer** (supporting batch sync & reorg protection) along with a **Merkle Tree-based** off-chain points and airdrop system.
 
 ---
 
-## 🏗️ Architecture & Tech Stack
+## 🏗 Architecture
 
-### 1. Smart Contracts (Blockchain Layer)
-- **Framework**: Foundry (Forge, Anvil, Cast)
-- **Libraries**: OpenZeppelin V5, Aave V3 Core
-- **Key Contracts**: `Vault.sol` (Core), `AaveStrategy.sol` (Yield Generator)
+The system consists of three layers: **On-Chain Protocol**, **Off-Chain Backend**, and **User Frontend**.
 
-### 2. Indexer & API (Backend Layer)
-- **Language**: Go 1.21+
-- **Framework**: Gin (HTTP), GORM (ORM)
-- **Blockchain SDK**: `go-ethereum` (Geth)
-- **Database**: PostgreSQL
+```mermaid
+graph TD
+    User((🤵 User))
+    
+    subgraph Blockchain ["Ethereum Mainnet Fork (Anvil)"]
+        Vault[💰 ERC4626 Vault]
+        Strategy[📈 Aave V3 Strategy]
+        Distributor[🎁 Merkle Distributor]
+        AavePool[🏦 Aave Protocol]
+        
+        Vault <--> Strategy <--> AavePool
+    end
 
-### 3. DApp (Frontend Layer)
-- **Framework**: React 18, TypeScript, Vite
-- **Web3 Tools**: Wagmi, Viem, RainbowKit
-- **Charts**: Recharts
+    subgraph Backend [Go Backend Services]
+        Indexer["⚡ Smart Indexer (Scanner)"]
+        Reconciler[🤖 Reconciler]
+        RewardEng["🧮 Reward Engine (Points)"]
+        DB[(PostgreSQL)]
+        API[Gin API]
+        
+        Indexer -->|Deposit/Withdraw Events| DB
+        Reconciler -->|Detect Yield| DB
+        RewardEng -->|Calculate Merkle Root| DB
+        API -.->|Provide Proof| User
+    end
+
+    subgraph Frontend [React + Wagmi]
+        UI[💻 Deposit/Yield/Claim]
+    end
+
+    User -->|1. Deposit| Vault
+    User -->|2. Claim Rewards| Distributor
+    UI -.->|3. Query History/Proof| API
+```
 
 ---
 
-## 📂 Project Structure
+## 🌟 Features
 
-- backend/             # Go Indexer & API Server
-  - abi/               # Generated Go ABI bindings
-  - config/            # Database and RPC configurations
-  - database/          # PostgreSQL models and GORM setup
-  - listener/          # WebSocket event listeners
-  - reconciler/        # 5-sec polling yield sync bot
-  - main.go            # Backend entry point
-- contracts/           # Foundry Smart Contract Project
-  - src/
-    - Vault.sol        # ERC-4626 Vault
-    - AaveStrategy.sol # Aave V3 Yield Router
-  - test/              # Foundry Tests
-  - script/            # Deployment scripts
-- frontend/            # React DApp
-  - src/
-    - components/      # ActionPanel, TVLChart, etc.
-    - hooks/           # Custom Wagmi hooks
-    - App.tsx          # Dashboard layout
+### 1. Smart Contracts (Solidity / Foundry)
+* **ERC-4626 Vault**: A standardized tokenized yield vault where users deposit USDT/DAI and receive vTokens.
+* **Aave V3 Integration**: Funds are automatically routed via the Strategy to Aave lending pools to generate real interest (aTokens).
+* **Merkle Drop**: A highly efficient gas-saving airdrop contract based on Merkle Proofs, supporting massive user bases.
+
+### 2. Backend Services (Go / Gorm / Gin)
+* **Smart Indexer**:
+    * **Dual-Mode Sync**: Supports "Batch Sync" (Catch-up mode) for fast history replay and "Live Sync" for real-time monitoring.
+    * **Reorg Protection**: Automatically detects chain forks (reorgs) and rolls back dirty data to ensure ledger consistency.
+* **Reconciler**: Monitors discrepancies between on-chain balances and database records to automatically detect and record **Yield** events.
+* **Reward Engine**: Off-chain calculation of user points based on `Balance * Duration`, generating the Merkle Tree Root for airdrops.
+
+### 3. Frontend Interaction (React / Viem / Wagmi)
+* **Real-time Interaction**: Wallet connection, deposits, and withdrawals.
+* **Data Visualization**: Charts displaying historical TVL (Total Value Locked).
+* **Airdrop Claiming**: Automatically fetches Merkle Proofs from the backend and calls the contract to claim RWD tokens.
+
+---
+
+## 🛠️ Tech Stack
+
+* **Contracts**: Solidity, Foundry (Forge, Anvil, Cast), OpenZeppelin
+* **Backend**: Go (Golang), Gorm (ORM), Gin (Web Framework), go-ethereum (RPC Client)
+* **Frontend**: React, TypeScript, Vite, Wagmi, Viem, Recharts
+* **Database**: PostgreSQL
+* **Network**: Ethereum Mainnet Fork (via Alchemy)
 
 ---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Foundry installed
-- Go 1.21+ installed
-- Node.js 18+ & npm installed
-- PostgreSQL running locally (Default port 5432)
+* [Foundry](https://getfoundry.sh/)
+* [Go](https://go.dev/) (1.20+)
+* [Node.js](https://nodejs.org/) (18+)
+* [PostgreSQL](https://www.postgresql.org/)
+* **Alchemy API Key** (Required for Mainnet Forking)
 
-### 1. Smart Contracts & Local Blockchain
+### 1. Start Blockchain Environment (Anvil Mainnet Fork)
+We need to fork Ethereum Mainnet to interact with the real Aave protocol.
+*(Replace `YOUR_ALCHEMY_KEY` with your actual key)*
 
-Start a local Anvil chain by forking the Sepolia Testnet (required to simulate Aave V3 environment):
+```bash
+# Keep this terminal window running
+anvil --fork-url [https://eth-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_KEY](https://eth-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_KEY) --chain-id 31337
+```
 
-$ anvil --fork-url https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY
+### 2. Deploy Contracts
+Open a new terminal to deploy the core contracts.
 
-In a new terminal, deploy the Vault and AaveStrategy:
+```bash
+# 1. Deploy Vault (Vault + Aave Strategy)
+forge script script/DeployAaveVault.s.sol --rpc-url [http://127.0.0.1:8545](http://127.0.0.1:8545) --broadcast
 
-$ cd contracts
-$ forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
+# ⚠️ NOTE: Record the 'Vault deployed at: 0x...' address from the output
 
-### 2. Backend Indexer (Go)
+# 2. Deploy Reward System (Reward Token + Distributor)
+forge script script/DeployReward.s.sol --rpc-url [http://127.0.0.1:8545](http://127.0.0.1:8545) --broadcast
 
-Configure your `config.yaml` or `.env` with the deployed contract addresses and database credentials.
+# ⚠️ NOTE: Record the 'Distributor deployed at: 0x...' address from the output
+```
 
-$ cd backend
-$ go mod tidy
-$ go run main.go
+### 3. Configure & Start Backend
+Update the contract address in `backend/main.go`:
+```go
+// backend/main.go
+var contractAddress = common.HexToAddress("0x...YOUR_VAULT_ADDRESS...")
+```
+Start the backend server:
+```bash
+cd backend
+# Ensure the database 'defi_db' exists
+go run main.go
+```
 
-*The backend API will be available at http://localhost:8080.*
-
-### 3. Frontend DApp (React)
-
-$ cd frontend
-$ npm install
-$ npm run dev
-
-*The DApp will be available at http://localhost:5173.*
-
----
-
-## 🔌 API Endpoints (Backend)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`  | `/api/tvl` | Returns the current Total Value Locked and Share Price. |
-| `GET`  | `/api/history` | Returns historical TVL data for chart rendering. |
-| `GET`  | `/api/events` | Returns recent deposit and withdraw activities. |
-
----
-
-## 🔒 Security Implementations
-
-* **Checks-Effects-Interactions (CEI)** pattern strictly followed to prevent reentrancy.
-* **Pull Pattern**: `AaveStrategy` safely pulls assets from the `Vault` using `safeTransferFrom`.
-* **Inflation Attack Protection**: Handled automatically via OpenZeppelin V5's virtual offset mechanism.
-* **Upgrade Resistance**: Aave Pool addresses are fetched dynamically to prevent lockups during protocol upgrades.
-
----
-
-## 🗺️ Roadmap / TODO
-
-- [x] Local MVP Closure (Deposit/Withdraw Loop)
-- [x] Yield Strategy Integration (Aave V3 Forking)
-- [x] Backend Reconciler for Syncing Passive Yield
-- [ ] **Security**: Implement `ReentrancyGuard` and `Pausable` for emergency brakes.
-- [ ] **Deployment**: Public Sepolia Testnet Deployment.
-- [ ] **Frontend**: User-specific Dashboard (My ROI) & APY calculation.
-- [ ] **DevOps**: Dockerize the entire stack (Postgres + Redis + Go Backend).
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+### 4. Configure & Start Frontend
+Update the contract addresses in `frontend/src/constants.ts`:
+```typescript
+export const VAULT_ADDRESS = "0x...YOUR_VAULT_ADDRESS...";
+export const DISTRIBUTOR_ADDRESS = "0x...YOUR_DISTRIBUTOR_ADDRESS...";
+```
+Start the frontend application:
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ---
 
-## 👨‍💻 Author
+## 🕹️ User Manual
+
+### Flow 1: Deposit & Earn Yield
+1.  Open the frontend (usually `http://localhost:5173`).
+2.  Connect your wallet (MetaMask) and switch to the Localhost network.
+3.  Input an amount (e.g., 100 DAI) and click **Deposit**.
+4.  Wait a few seconds; the Go backend will index the transaction, and the chart will update.
+5.  Over time, as Aave generates interest, the backend `Reconciler` will automatically record **Yield**, and the TVL will increase.
+
+### Flow 2: Distribute & Claim Rewards (Merkle Drop)
+This is a semi-automated process (simulating real-world operations):
+
+1.  **Points Calculation**: The backend `Reward Engine` calculates user points every 10 seconds.
+2.  **Get Root**: Visit the API `http://localhost:8080/api/rewards/proof?user=YOUR_WALLET_ADDRESS` and copy the `"root"` field from the JSON response.
+3.  **Update Root On-Chain (Admin Action)**:
+    Update `script/UpdateRoot.s.sol` with the new Root and Distributor address.
+    ```bash
+    forge script script/UpdateRoot.s.sol --rpc-url [http://127.0.0.1:8545](http://127.0.0.1:8545) --broadcast
+    ```
+4.  **Claim Reward**:
+    Return to the frontend. The Reward Card will now show the claimable amount. Click **Claim** to receive RWD tokens.
+
+---
+
+## 📂 Project Structure
+
+```
+defi-staking/
+├── lib/                 # Foundry dependencies
+├── src/                 # Solidity contract source code
+│   ├── Vault.sol        # ERC4626 Vault
+│   ├── AaveStrategy.sol # Aave Strategy Adapter
+│   └── MerkleDistributor.sol # Airdrop Contract
+├── script/              # Deployment & Interaction scripts
+├── backend/             # Go Backend Project
+│   ├── main.go          # Main entry (All services)
+│   └── utils/           # Merkle Tree implementation
+└── frontend/            # React Frontend Project
+    ├── src/components/  # UI Components (VaultInfo, RewardCard...)
+    └── src/constants.ts # Contract Address Configuration
+```
+
+---
+
+## ⚠️ Notes
+* This project uses the Alchemy Free Tier. The backend is configured with `BatchSize = 10` to avoid triggering RPC rate limits.
+* **Crucial**: Every time you restart Anvil, the chain state resets. You **MUST** redeploy contracts and clear the database tables; otherwise, synchronization errors will occur.
+
+---
 
 **GuangchaoYi**
 * Full Stack Developer (Go / Java / Solidity)
