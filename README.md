@@ -12,7 +12,7 @@ An industrial-grade, full-stack DeFi project demonstration. It implements an **E
 
 ## 🏗 Architecture
 
-The system  consists of three layers: **On-Chain Protocol**, **Off-Chain Backend**, and **User Frontend**.
+The system  consists of three layers: **On-Chain Protocol**, **Off-Chain Backend**,  and **User Frontend**.
 
 ```mermaid
 graph TD
