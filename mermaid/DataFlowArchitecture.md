@@ -275,3 +275,83 @@ graph TD
     Backfill --> Merkle
     Merkle --> Testnet
 ```
+```mermaid
+graph TD
+    %% 定义样式
+    classDef frontend fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef contract fill:#fff3e0,stroke:#ff6f00,stroke-width:2px;
+    classDef backend fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
+    classDef external fill:#eeeeee,stroke:#616161,stroke-width:2px,stroke-dasharray: 5 5;
+
+    %% --- 1. 用户前端层 (Frontend Layer) ---
+    subgraph Client_Side ["💻 客户端 / 前端 (React + Wagmi)"]
+        User((👤 User))
+        Wallet["🦊 Wallet (MetaMask/Rabby)"]
+        UI["⚛️ React UI (Dashboard)"]
+    end
+
+    %% --- 2. 链上合约层 (On-Chain Layer) ---
+    subgraph Blockchain ["⛓️ Ethereum / Anvil (Local Fork)"]
+        Vault["🏦 Vault.sol (ERC20 vDAI)"]
+        Strategy[⚙️ AaveStrategy.sol]
+        Logs["📜 Event Logs (Deposit/Withdraw)"]
+    end
+
+    %% --- 3. 外部协议 (External Protocol) ---
+    subgraph External_DeFi [🌐 External Protocols]
+        AaveV3[👻 Aave V3 Pool]
+    end
+
+    %% --- 4. 后端服务层 (Backend Layer) ---
+    subgraph Backend_Services [🚀 Golang Backend Services]
+        Indexer["️🕷 Event Indexer (Listener)"]
+        API["🔌 REST API (Gin)"]
+        PointsSvc["⭐ Points Service (Cron)"]
+        ReconSvc["🛡️ Reconciliation Service (Cron)"]
+    end
+
+    %% --- 5. 数据存储层 (Data Layer) ---
+    subgraph Storage [💾 Data Storage]
+        DB[(🐘 PostgreSQL)]
+        Redis[(⚡ Redis Cache)]
+    end
+
+    %% ================= 连线关系 (Flows) =================
+
+    %% Flow A: 用户存款流程 (Deposit Flow)
+    User -->|1. Click Deposit| UI
+    UI -->|2. Sign Tx| Wallet
+    Wallet -->|3. sendTransaction| Vault
+    Vault -->|4. Supply Assets| Strategy
+    Strategy -->|5. Deposit to Pool| AaveV3
+    AaveV3 -.->|6. Return aToken Yield| Strategy
+    Vault -.->|7. Mint vDAI Shares| User
+    Vault -- 8. Emit Event --> Logs
+
+    %% Flow B: 数据索引流程 (Indexing Flow)
+    Indexer -- 9. Watch/Poll Logs --> Logs
+    Indexer -->|10. Parse & Save Tx| DB
+    Indexer -->|11. Update User Balance| DB
+
+    %% Flow C: 数据查询流程 (Read Flow)
+    UI -- 12. GET /history & /points --> API
+    API -- 13. Query Data --> DB
+    API -- 14. Cache Hit? --> Redis
+
+    %% Flow D: 积分计算流程 (Points System)
+    PointsSvc -- 15. Daily Snapshot --> DB
+    PointsSvc -->|"16. Calculate (Balance * Time)"| DB
+
+    %% Flow E: 对账风控流程 (Reconciliation)
+    ReconSvc -- 17. Get Total Supply (RPC) --> Vault
+    ReconSvc -- 18. Get Total User Balances --> DB
+    ReconSvc -->|19. Compare & Alert| ReconSvc
+
+    %% 应用样式
+    class User,Wallet,UI frontend;
+    class Vault,Strategy,Logs contract;
+    class Indexer,API,PointsSvc,ReconSvc backend;
+    class DB,Redis storage;
+    class AaveV3 external;
+```
