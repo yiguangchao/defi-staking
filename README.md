@@ -6,7 +6,7 @@
 ![React](https://img.shields.io/badge/React-18-61DAFB)
 ![Foundry](https://img.shields.io/badge/Foundry-Framework-orange)
 
-An industrial-grade, full-stack DeFi project demonstration. It implements an **ERC-4626** standard vault, integrates **Aave V3** for real-world yield generation, and features a high-performance **Go Backend Indexer** (supporting batch sync & reorg protection) along with a **Merkle Tree-based** off-chain points and airdrop system.
+An industrial-grade, full-stack DeFi project demonstration. It  implements an **ERC-4626** standard vault, integrates **Aave V3** for real-world yield generation, and features a high-performance **Go Backend Indexer** (supporting batch sync & reorg protection) along with a **Merkle Tree-based** off-chain points and  airdrop system.
 
 ---
 
