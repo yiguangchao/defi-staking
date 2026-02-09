@@ -60,7 +60,7 @@ graph TD
 
 ### 2. Backend Services (Go / Gorm / Gin)
 * **Smart Indexer**:
-    * **Dual-Mode Sync**: Supports "Batch Sync" (Catch-up mode) for fast history replay and "Live Sync" for real-time monitoring.
+    * **Dual-Mode Sync**:  Supports "Batch Sync" (Catch-up mode) for fast history replay and "Live Sync" for real-time monitoring.
     * **Reorg Protection**: Automatically detects chain forks (reorgs) and rolls back dirty data to ensure ledger consistency.
 * **Reconciler**: Monitors discrepancies between on-chain balances and database records to automatically detect and record **Yield** events.
 * **Reward Engine**: Off-chain calculation of user points based on `Balance * Duration`, generating the Merkle Tree Root for airdrops.
