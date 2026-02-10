@@ -355,3 +355,81 @@ graph TD
     class DB,Redis storage;
     class AaveV3 external;
 ```
+
+```mermaid
+flowchart TB
+  %% ========== Users & UI ==========
+  U[Users / Wallets] -->|Deposit / Withdraw / Claim| FE["Web App (Frontend)"]
+  OP[Operators / Admin] -->|Config / Proposals| ADMIN[Admin Console]
+
+  %% ========== On-chain ==========
+  subgraph ON["On-chain Protocol (Smart Contracts)"]
+    VAULT["ERC-4626 Vault\n- shares\n- fees\n- caps\n- pause"]
+    ROUTER["Strategy Router / Allocator\n- route funds\n- rebalance"]
+    STRAT1[Aave Strategy]
+    STRAT2["Other Strategies\nCompound/Yearn/etc"]
+    IDLE["Idle Strategy\n(emergency)"]
+    DIST["Merkle Distributor\n(claim rewards)"]
+    GOV["Multisig + Timelock\n(governance)"]
+    RISK["Risk Controls\npause/caps/roles"]
+  end
+
+  %% Frontend calls on-chain
+  FE -->|tx| VAULT
+  FE -->|tx| DIST
+  ADMIN -->|submit tx| GOV
+  GOV -->|execute| RISK
+  GOV -->|execute| VAULT
+  GOV -->|execute| ROUTER
+  GOV -->|execute| DIST
+
+  %% Vault routes to strategies
+  VAULT -->|invest| ROUTER
+  ROUTER --> STRAT1
+  ROUTER --> STRAT2
+  ROUTER --> IDLE
+  STRAT1 -->|interact| AAVE[(Aave V3)]
+  STRAT2 -->|interact| EXT[(Other DeFi Protocols)]
+  IDLE -->|hold| ASSET[(Underlying Asset)]
+
+  %% ========== Off-chain ==========
+  subgraph OFF["Off-chain Services (Backend)"]
+    IDX["Indexer\n- batch sync\n- live sync\n- reorg handling"]
+    ACC["Accounting / Portfolio\n- positions\n- TVL\n- share price"]
+    REC["Reconciler\n- onchain vs DB\n- anomaly detect"]
+    REW["Rewards Engine\n- epoch snapshots\n- points calc\n- merkle root/proofs"]
+    RENG["Risk Engine\n- APR/health monitors\n- alerts\n- triggers"]
+    API["API Gateway\n- user positions\n- charts\n- proofs"]
+  end
+
+  %% Infra
+  subgraph INFRA[Infrastructure]
+    RPC[RPC Providers / Nodes]
+    DB[(PostgreSQL)]
+    CACHE[(Redis Cache)]
+    QUEUE[(Queue / Scheduler)]
+    OBS["Observability\nPrometheus/Grafana/Logs"]
+  end
+
+  %% Connections
+  IDX <-->|logs/events| RPC
+  IDX --> DB
+  ACC --> DB
+  REC --> DB
+  REW --> DB
+  API --> DB
+  API --> CACHE
+  REW --> QUEUE
+  IDX --> OBS
+  API --> OBS
+  RENG --> OBS
+
+  %% Reward root update
+  REW -->|merkle root| ADMIN
+  ADMIN -->|propose root update| GOV
+  GOV -->|setRoot| DIST
+
+  %% Frontend reads
+  FE <-->|read API| API
+  FE <-->|read onchain| RPC
+```
