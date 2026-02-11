@@ -433,3 +433,41 @@ flowchart TB
   FE <-->|read API| API
   FE <-->|read onchain| RPC
 ```
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant User as User Wallet
+  participant FE as Frontend (React + Wagmi/Viem)
+  participant Vault as ERC-4626 Vault
+  participant Strat as AaveStrategy
+  participant Aave as Aave V3
+  participant IDX as Backend Indexer (Go)
+  participant DB as PostgreSQL
+  participant REW as Reward Engine (Go)
+  participant Dist as MerkleDistributor
+  participant API as Gin API
+
+  Note over User,FE: 1) Deposit / Withdraw (Yield)
+  User->>FE: Connect wallet
+  FE->>Vault: deposit(assets, receiver)
+  Vault->>Strat: invest / depositToStrategy()
+  Strat->>Aave: supply(asset, amount)
+  Aave-->>Strat: aToken balance increases over time
+  Strat-->>Vault: report / assets managed
+
+  Note over IDX,DB: 2) Index chain events into DB
+  IDX->>Vault: Subscribe/Scan events (Deposit/Withdraw/Transfer)
+  IDX->>DB: Upsert events + update positions
+
+  Note over REW,Dist: 3) Rewards (Points -> Merkle -> Claim)
+  REW->>DB: Read user positions over time
+  REW->>REW: Compute points (balance * duration)
+  REW->>DB: Save epoch/root/proofs
+  FE->>API: GET /api/rewards/proof?user=0x...
+  API->>DB: Query proof + amount + root
+  API-->>FE: Return proof data
+  FE->>Dist: claim(index, account, amount, proof)
+  Dist-->>User: Transfer reward token
+
+```
