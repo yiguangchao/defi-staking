@@ -471,3 +471,35 @@ sequenceDiagram
   Dist-->>User: Transfer reward token
 
 ```
+
+```mermaid
+flowchart LR
+  subgraph Contracts[Contracts]
+    V[Vault]
+    S[Strategy]
+    D[MerkleDistributor]
+    G[Guardian Role]
+    A[Admin Role]
+  end
+
+  subgraph Controls[Controls to Add]
+    P[Pausable\npause/unpause]
+    C[Caps\n- global cap\n- user cap]
+    R[Roles\n- Admin\n- Guardian]
+    T["Timelock/Multisig (optional)"]
+  end
+
+  A -->|set caps / change params| V
+  G -->|pause in emergency| V
+  G -->|pause in emergency| D
+  V -->|route funds| S
+
+  V --- P
+  V --- C
+  V --- R
+  D --- P
+  D --- R
+  T -.->|execute critical changes| V
+  T -.->|execute critical changes| D
+
+```
