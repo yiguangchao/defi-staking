@@ -501,5 +501,100 @@ flowchart LR
   D --- R
   T -.->|execute critical changes| V
   T -.->|execute critical changes| D
+```
+```mermaid
+flowchart TB
+  %% ====== Clients ======
+  subgraph Clients[Clients / 用户侧]
+    Web["Web App (React/Next)"]
+    Mobile[Mobile App]
+    Bot[Trading Bot / API Client]
+    Wallet["Wallet (MetaMask / WalletConnect)"]
+  end
 
+  %% ====== Edge & Services ======
+  subgraph Edge["Edge / 平台服务层（链下）"]
+    CDN[CDN / WAF]
+    FE[Frontend Hosting]
+    API[API Gateway]
+    Auth[SIWE / Non-custodial Auth]
+    Cache["Cache (Redis)"]
+    MQ[Message Queue]
+    Worker[Workers / Schedulers]
+  end
+
+  %% ====== Data & Observability ======
+  subgraph Data[Data / 索引 & 存储]
+    Indexer["Indexer (Logs, Events)"]
+    Subgraph[The Graph / Subgraph]
+    DB["(Postgres / Timescale)"]
+    TS["(Object Storage)"]
+    Analytics[Analytics / BI]
+  end
+
+  subgraph Obs[Observability]
+    Logs[Logs]
+    Metrics[Metrics]
+    Traces[Tracing]
+    Alerts[Alerts]
+  end
+
+  %% ====== Chain ======
+  subgraph Chain[Blockchain / 链上]
+    RPC["RPC Providers (Public/Private)"]
+    Bundler["AA Bundler (optional)"]
+    Oracle["Oracles (Chainlink / Pyth)"]
+    Contracts["Smart Contracts (Core)"]
+    Multisig[Multisig / Timelock]
+  end
+
+  %% ====== Integrations ======
+  subgraph Integrations[Integrations / 外部集成]
+    CEX[CEX On/Off Ramp]
+    Fiat[Fiat Onramp]
+    Third["3rd-party APIs (Price, Risk)"]
+    MEV[MEV Relay / Private Tx]
+  end
+
+  %% ====== Flows ======
+  Web --> CDN --> FE
+  Mobile --> CDN
+  Bot --> API
+
+  Wallet --> Web
+  Wallet --> Mobile
+
+  FE --> API
+  API --> Auth
+  API --> Cache
+  API --> DB
+  API --> MQ
+  MQ --> Worker
+
+  Worker --> Indexer
+  Indexer --> DB
+  Indexer --> TS
+  Subgraph --> DB
+  Analytics --> DB
+
+  API --> RPC
+  Worker --> RPC
+  RPC --> Contracts
+  Contracts --> Oracle
+  Multisig --> Contracts
+
+  API --> Third
+  API --> Fiat
+  API --> CEX
+  Web --> MEV
+  API --> MEV
+  Bundler --> RPC
+
+  API --> Logs
+  API --> Metrics
+  API --> Traces
+  Worker --> Logs
+  Worker --> Metrics
+  Worker --> Alerts
+  Alerts --> Logs
 ```
