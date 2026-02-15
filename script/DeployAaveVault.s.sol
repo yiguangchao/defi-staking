@@ -14,7 +14,7 @@ contract DeployAaveVault is Script {
     address constant A_TOKEN = 0x018008bfb33d285247A21d44E50697654f754e63;
 
     // Aave V3 Pool Addresses Provider
-    address constant PROVIDER = 0x2f39d218133af9B3AF5147290F239068cA724888;
+    address constant PROVIDER = 0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e;
 
     // Binance Whale (DAI)
     address constant BINANCE_WHALE = 0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503;
@@ -29,11 +29,13 @@ contract DeployAaveVault is Script {
 
         // --- 2. Deploy Aave strategy ---
         AaveStrategy strategy = new AaveStrategy(DAI, A_TOKEN, PROVIDER);
-        console.log("AaveStrategy deployed at:", address(strategy));
+        console.log("AaveStrategy deployed at:");
+        console.log(address(strategy));
 
         // --- 3. Deploy the vault ---
         Vault vault = new Vault(IERC20(DAI), "Vault Aave DAI", "vDAI", address(strategy));
-        console.log("Vault deployed at:", address(vault));
+        console.log("Vault deployed at:");
+        console.log(address(vault));
 
         vm.stopBroadcast();
 
