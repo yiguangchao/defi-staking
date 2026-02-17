@@ -598,3 +598,61 @@ flowchart TB
   Worker --> Alerts
   Alerts --> Logs
 ```
+```mermaid
+flowchart TB
+  %% ============ Client ============
+  subgraph C[Client]
+    FE["Web Frontend (React)"]
+    WAL["Wallet (MetaMask / WalletConnect)"]
+  end
+
+  %% ============ Backend ============
+  subgraph S[Backend Services]
+    BFF["Go BFF API (REST/GraphQL)"]
+    Signer["Tx Helper (Optional)\nEIP-712 / Relay / Simulation"]
+    Notif[Notification Service\nEmail/Discord/Webhook]
+    Admin[Admin Panel API]
+  end
+
+  %% ============ Infra ============
+  subgraph I[Infra / Middleware]
+    NGINX[Reverse Proxy / Nginx]
+    REDIS["(Redis Cache)"]
+    MQ["Queue (RabbitMQ/Kafka/Redis Streams)"]
+    OBS[Observability\nLogs/Metrics/Tracing]
+  end
+
+  %% ============ Data ============
+  subgraph D[Data Layer]
+    PG[(PostgreSQL)]
+    OBJ[(Object Storage)]
+  end
+
+  %% ============ Chain ============
+  subgraph CH[Blockchain Network]
+    RPC["RPC (Anvil / Alchemy / Infura / Self-hosted)"]
+    Core["Core Contracts\n(Staking/Vault/Router)"]
+    Oracle["Oracle (Chainlink/Pyth)"]
+  end
+
+  %% ============ Indexing ============
+  subgraph X[Indexing / Sync]
+    Listener["Event Listener\n(Go Worker)"]
+    Subgraph["The Graph (Optional)"]
+  end
+
+  %% ============ DevOps ============
+  subgraph O[DevOps / CI-CD]
+    CI["CI Pipeline\n(Unit/Integration/Test)"]
+    CD[CD Deploy\nDocker/K8s]
+    Secret[Secrets\nVault/ENV]
+  end
+
+  %% ----------- Flows -----------
+  FE --> NGINX --> BFF
+  WAL --> FE
+
+  BFF --> REDIS
+  BFF --> PG
+  BFF --> MQ
+```
