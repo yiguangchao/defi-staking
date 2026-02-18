@@ -656,3 +656,59 @@ flowchart TB
   BFF --> PG
   BFF --> MQ
 ```
+```mermaid
+sequenceDiagram
+  autonumber
+  participant U as User
+  participant FE as Frontend (React)
+  participant W as Wallet (MetaMask/WC)
+  participant B as Backend (Go BFF)
+  participant RPC as RPC (Anvil/Mainnet Fork)
+  participant SC as Smart Contract
+  participant IDX as Event Listener / Indexer
+  participant DB as PostgreSQL
+  participant C as Cache (Redis)
+
+  U->>FE: Click "Stake / Unstake / Claim"
+  FE->>B: GET /quote or /preview (optional)
+  B->>RPC: eth_call simulate (read-only)
+  RPC-->>B: simulation result
+  B-->>FE: return expected out / gas / warnings
+
+  FE->>W: request signature / sendTransaction
+  W->>RPC: eth_sendRawTransaction
+  RPC-->>W: txHash
+  W-->>FE: txHash
+
+  par UI Pending
+    FE->>B: POST /txs (record pending tx)
+    B->>DB: insert tx(pending)
+    B->>C: cache pending status
+    B-->>FE: ack
+  and Confirmations
+    RPC->>SC: execute tx in block
+    SC-->>RPC: emit events (Stake/Unstake/Claim)
+  end
+
+  IDX->>RPC: subscribe logs / poll receipts
+  RPC-->>IDX: receipt + logs
+  IDX->>DB: upsert tx(status=confirmed) + user position
+  IDX->>C: invalidate/update cache
+
+  FE->>B: GET /portfolio /positions
+  B->>C: read cache
+  C-->>B: positions (or miss)
+  alt Cache miss
+    B->>DB: query positions
+    DB-->>B: positions
+    B->>C: set cache
+  end
+  B-->>FE: latest positions
+  FE-->>U: UI shows success + updated balance
+
+  opt Reorg / Fail
+    IDX->>DB: mark tx failed/reorged
+    FE->>B: poll status -> show error & retry option
+  end
+
+```
