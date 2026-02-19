@@ -710,5 +710,31 @@ sequenceDiagram
     IDX->>DB: mark tx failed/reorged
     FE->>B: poll status -> show error & retry option
   end
+```
+```mermaid
+flowchart LR
+  U[User/Wallet] --> FE[Frontend]
+  FE --> R[Router]
 
+  subgraph AMM[AMM Core]
+    F[Factory]
+    P1[Pair A-B]
+    P2[Pair B-C]
+  end
+
+  R -->|find pair| F
+  F -->|pair addr| R
+
+  R -->|swap hop1| P1
+  P1 -->|token B| R
+  R -->|swap hop2| P2
+  P2 -->|token C| U
+
+  subgraph Indexing[Off-chain]
+    IDX[Indexer/Listener]
+    DB[(Postgres)]
+  end
+
+  P1 -->|Swap/Mint/Burn/Sync events| IDX --> DB
+  P2 -->|Swap/Mint/Burn/Sync events| IDX --> DB
 ```
