@@ -738,3 +738,52 @@ flowchart LR
   P1 -->|Swap/Mint/Burn/Sync events| IDX --> DB
   P2 -->|Swap/Mint/Burn/Sync events| IDX --> DB
 ```
+```mermaid
+flowchart TD
+  A[用户打开 DApp 页面] --> B[连接钱包 WalletConnect/MetaMask]
+  B --> C{选择功能}
+  C -->|Swap 换币| S1[输入 TokenIn/TokenOut & 数量]
+  C -->|Stake 质押| T1[输入质押数量]
+  C -->|Unstake 解押| T2[输入解押数量]
+  C -->|Claim 领取奖励| T3[点击领取]
+
+  %% ---- Quote / Preview ----
+  S1 --> Q[获取报价/预览]
+  T1 --> Q
+  T2 --> Q
+  T3 --> Q
+
+  Q --> Q1[前端调用 Backend /quote 或直接 eth_call]
+  Q1 --> Q2[RPC: eth_call 模拟执行]
+  Q2 --> Q3[返回: 预估输出/滑点/手续费/Gas/风险提示]
+  Q3 --> D{用户确认参数?}
+
+  %% ---- Tx Build & Sign ----
+  D -->|否| C
+  D -->|是| E[构造交易数据: to/data/value]
+  E --> F[钱包签名 & 发交易 eth_sendRawTransaction]
+  F --> G[获得 txHash，前端显示 Pending]
+
+  %% ---- On-chain Execution ----
+  G --> H[交易进入 Mempool/打包]
+  H --> I[合约执行: swap/stake/unstake/claim]
+  I --> J[产生事件: Swap/Stake/Unstake/Claim/Transfer]
+
+  %% ---- Off-chain Indexing ----
+  J --> K[Indexer 监听日志/轮询回执]
+  K --> L[解析事件 & 计算用户仓位/收益]
+  L --> M[(PostgreSQL 持久化)]
+  L --> N[(Redis 缓存更新/失效)]
+
+  %% ---- UI Refresh ----
+  M --> O[Backend API /positions /portfolio]
+  N --> O
+  O --> P[前端刷新余额/仓位/收益/历史记录]
+  P --> Z[用户看到成功状态]
+
+  %% ---- Exceptions ----
+  I --> X{执行成功?}
+  X -->|否| X1[回执失败: revert/out-of-gas]
+  X1 --> X2[前端提示失败原因 & 可重试]
+  X -->|是| J
+```
