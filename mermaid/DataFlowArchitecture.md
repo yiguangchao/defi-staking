@@ -787,3 +787,91 @@ flowchart TD
   X1 --> X2[前端提示失败原因 & 可重试]
   X -->|是| J
 ```
+```mermaid
+flowchart TB
+  %% ========= Clients =========
+  subgraph C[Clients]
+    U[User]
+    FE["Web UI (React)"]
+    WAL["Wallet (MetaMask/WC)"]
+  end
+
+  %% ========= Backend =========
+  subgraph B["Backend (Off-chain)"]
+    API[Go BFF API\nREST/GraphQL]
+    IDX["Event Indexer\n(Logs/Receipts)"]
+    JOB["Keeper/Jobs\n(Cron/Queue)"]
+    RISK["Risk & Policy\n(slippage/limits/blacklist)"]
+    AUTH["Auth & Rate Limit\n(SIWE/Nonce)"]
+  end
+
+  %% ========= Data =========
+  subgraph D[Data Layer]
+    PG["(PostgreSQL)"]
+    REDIS["(Redis Cache)"]
+    OBJ["(Object Storage/Logs)"]
+  end
+
+  %% ========= Observability =========
+  subgraph O[Observability]
+    LOG[Logs]
+    MET[Metrics]
+    AL[Alerts]
+  end
+
+  %% ========= Chain =========
+  subgraph CH[Blockchain]
+    RPC["RPC (Anvil/Provider)"]
+    STK[Staking Contract]
+    RWD[Reward Distributor]
+    TOK["ERC20 Token(s)"]
+    ORA["Oracle (optional)"]
+    GOV[Timelock / Multisig]
+  end
+
+  %% ========= User Journey =========
+  U --> FE --> WAL
+  FE -->|Read positions/APY/history| API
+  API --> REDIS
+  API --> PG
+
+  %% ========= Read & Simulate =========
+  FE -->|Preview/APY/estimate| API
+  API -->|eth_call simulate| RPC
+  RPC --> STK
+
+  %% ========= Write Tx =========
+  WAL -->|approve/stake/unstake/claim| RPC
+  RPC --> STK
+  STK --> RWD
+  STK --> TOK
+  RWD --> TOK
+  STK --> ORA
+
+  %% ========= Indexing =========
+  RPC -->|logs/receipts| IDX
+  IDX -->|decode events\nStake/Unstake/Claim/Transfer| PG
+  IDX --> REDIS
+  IDX --> OBJ
+
+  %% ========= Automation =========
+  JOB --> RPC
+  JOB --> RISK
+  RISK --> PG
+  RISK --> REDIS
+
+  %% ========= Admin/Security =========
+  GOV --> STK
+  GOV --> RWD
+
+  %% ========= Ops =========
+  API --> LOG
+  API --> MET
+  IDX --> LOG
+  IDX --> MET
+  MET --> AL
+  LOG --> AL
+
+  %% ========= Auth =========
+  FE -->|SIWE login| AUTH --> API
+```
