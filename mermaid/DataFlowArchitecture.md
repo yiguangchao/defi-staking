@@ -875,3 +875,86 @@ flowchart TB
   %% ========= Auth =========
   FE -->|SIWE login| AUTH --> API
 ```
+```mermaid
+flowchart TB
+  %% ========= Clients =========
+  subgraph C[Clients]
+    U[User]
+    FE["Web UI (React)"]
+    WAL[Wallet]
+  end
+
+  %% ========= Off-chain =========
+  subgraph OFF[Off-chain Services]
+    API[Go BFF API\nPortfolio/History/Risk View]
+    SIM[Tx Simulation\neth_call / tenderly-like]
+    IDX[Indexer\nEvents/Receipts]
+    KPR[Keepers\nLiquidation/Health checks]
+    RISK[Risk Engine\nCaps/Blacklist/Alerts]
+  end
+
+  %% ========= Data =========
+  subgraph D[Data]
+    PG["(PostgreSQL)"]
+    REDIS["(Redis Cache)"]
+  end
+
+  %% ========= Chain =========
+  subgraph CH[On-chain Lending Protocol]
+    CTRL[Comptroller / Risk Controller]
+    MKT["Markets (cToken/aToken)\nDeposit/Borrow/Repay/Withdraw"]
+    IRM[Interest Rate Model]
+    LIQ[Liquidation Module]
+    TRE[Treasury / Reserve]
+    ORA["Price Oracle\n(Chainlink/Pyth/TWAP)"]
+    TOK[ERC20 Tokens]
+    GOV[Timelock + Multisig]
+  end
+
+  %% ========= Flows: Read =========
+  U --> FE --> WAL
+  FE -->|fetch positions/APY/health| API
+  API --> REDIS
+  API --> PG
+
+  %% ========= Flows: Preview =========
+  FE -->|preview borrow/withdraw| API
+  API --> SIM
+  SIM -->|eth_call| RPC["(RPC)"]
+  RPC --> CTRL
+  RPC --> MKT
+
+  %% ========= Flows: Write =========
+  WAL -->|deposit/borrow/repay/withdraw| RPC
+  RPC --> MKT
+  MKT --> CTRL
+  CTRL --> ORA
+  CTRL --> IRM
+  MKT --> TRE
+  MKT --> TOK
+
+  %% ========= Liquidation =========
+  KPR -->|monitor health factor| RPC
+  KPR -->|trigger liquidation tx| RPC
+  RPC --> LIQ
+  LIQ --> CTRL
+  LIQ --> ORA
+  LIQ --> MKT
+  LIQ --> TRE
+
+  %% ========= Indexing =========
+  RPC --> IDX
+  IDX -->|decode events\nDeposit/Borrow/Repay/Withdraw/Liquidate| PG
+  IDX --> REDIS
+
+  %% ========= Governance =========
+  GOV --> CTRL
+  GOV --> ORA
+  GOV --> IRM
+  GOV --> TRE
+
+  %% ========= Risk Ops =========
+  RISK --> PG
+  RISK --> REDIS
+  RISK -->|alerts| FE
+```
