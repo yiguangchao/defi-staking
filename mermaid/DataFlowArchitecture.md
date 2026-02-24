@@ -958,5 +958,123 @@ flowchart TB
   RISK --> REDIS
   RISK -->|alerts| FE
 ```
+
+
+
+
+
+
+
+
 ```mermaid
+flowchart TB
+  %% ============ Clients ============
+  subgraph C[Clients]
+    U[User]
+    WEB["Web App (React/Next)"]
+    MOB[Mobile / MiniApp]
+    WAL["Wallet (MetaMask/WC/AA)"]
+  end
+
+  %% ============ Edge ============
+  subgraph E[Edge]
+    CDN[CDN/WAF]
+    GW[API Gateway]
+    RL[Rate Limit / Anti-Abuse]
+  end
+
+  %% ============ Off-chain Core ============
+  subgraph OFF[Off-chain Platform]
+    BFF[Go BFF API\nPortfolio/Quote/History]
+    QUOTE[Quote Engine\nRouting/Slippage/Fee]
+    SIM[Tx Simulation\neth_call + revert reason]
+    MEV["Private Tx / MEV Protection\n(optional)"]
+    POLICY[Policy & Risk Rules\nCaps/Whitelist/Blacklist]
+    JOB[Schedulers/Workers\nRebalance/Harvest]
+    IDX[Indexer\nLogs/Receipts/Subgraph]
+  end
+
+  %% ============ Data ============
+  subgraph D[Data Layer]
+    PG["(PostgreSQL/Timescale)"]
+    REDIS["(Redis Cache)"]
+    OBJ["(Object Storage)"]
+    BI[Analytics/BI]
+  end
+
+  %% ============ Chains ============
+  subgraph CH[Multi-chain On-chain]
+    RPC["RPC Pool\n(Self-hosted/Provider)"]
+    BR["Bridge / Message Layer\n(LayerZero/Wormhole/etc)"]
+    ORA["Oracles\n(Chainlink/Pyth/TWAP)"]
+    GOV[Multisig + Timelock]
+    subgraph CORE[Core Contracts]
+      ROUTER[Router/Entry]
+      VAULT["Vault (Shares)"]
+      STRAT["Strategy Modules\n(DEX/Lend/Staking)"]
+      AMM[DEX Pools]
+      LEND[Lending Markets]
+      FEE[FeeCollector]
+      PAUSE[Circuit Breaker]
+    end
+  end
+
+  %% ============ Observability ============
+  subgraph OBS[Observability]
+    LOG[Logs]
+    MET[Metrics]
+    TRC[Tracing]
+    ALT[Alerts]
+  end
+
+  %% ----------- User flow -----------
+  U --> WEB --> CDN --> GW
+  U --> MOB --> CDN
+  WAL --> WEB
+  WAL --> MOB
+
+  GW --> RL --> BFF
+  BFF --> REDIS
+  BFF --> PG
+
+  %% ----------- Quote & Simulate -----------
+  BFF --> QUOTE
+  QUOTE --> RPC
+  BFF --> SIM --> RPC
+
+  %% ----------- Send Tx -----------
+  WAL -->|swap/deposit/withdraw| RPC
+  WEB -->|optional private route| MEV --> RPC
+  RPC --> ROUTER --> VAULT
+  VAULT --> STRAT
+  STRAT --> AMM
+  STRAT --> LEND
+  STRAT --> ORA
+  ROUTER --> FEE
+  GOV --> PAUSE --> ROUTER
+
+  %% ----------- Cross-chain -----------
+  ROUTER --> BR
+  BR --> RPC
+
+  %% ----------- Indexing & Jobs -----------
+  RPC --> IDX
+  IDX --> PG
+  IDX --> OBJ
+  IDX --> REDIS
+  JOB --> RPC
+  JOB --> POLICY
+  POLICY --> PG
+  POLICY --> REDIS
+  BI --> PG
+
+  %% ----------- Observability -----------
+  BFF --> LOG
+  BFF --> MET
+  BFF --> TRC
+  IDX --> LOG
+  IDX --> MET
+  JOB --> LOG
+  MET --> ALT
+  LOG --> ALT
 ```
