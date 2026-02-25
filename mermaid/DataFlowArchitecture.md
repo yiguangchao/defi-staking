@@ -710,5 +710,371 @@ sequenceDiagram
     IDX->>DB: mark tx failed/reorged
     FE->>B: poll status -> show error & retry option
   end
+```
+```mermaid
+flowchart LR
+  U[User/Wallet] --> FE[Frontend]
+  FE --> R[Router]
 
+  subgraph AMM[AMM Core]
+    F[Factory]
+    P1[Pair A-B]
+    P2[Pair B-C]
+  end
+
+  R -->|find pair| F
+  F -->|pair addr| R
+
+  R -->|swap hop1| P1
+  P1 -->|token B| R
+  R -->|swap hop2| P2
+  P2 -->|token C| U
+
+  subgraph Indexing[Off-chain]
+    IDX[Indexer/Listener]
+    DB[(Postgres)]
+  end
+
+  P1 -->|Swap/Mint/Burn/Sync events| IDX --> DB
+  P2 -->|Swap/Mint/Burn/Sync events| IDX --> DB
+```
+```mermaid
+flowchart TD
+  A[用户打开 DApp 页面] --> B[连接钱包 WalletConnect/MetaMask]
+  B --> C{选择功能}
+  C -->|Swap 换币| S1[输入 TokenIn/TokenOut & 数量]
+  C -->|Stake 质押| T1[输入质押数量]
+  C -->|Unstake 解押| T2[输入解押数量]
+  C -->|Claim 领取奖励| T3[点击领取]
+
+  %% ---- Quote / Preview ----
+  S1 --> Q[获取报价/预览]
+  T1 --> Q
+  T2 --> Q
+  T3 --> Q
+
+  Q --> Q1[前端调用 Backend /quote 或直接 eth_call]
+  Q1 --> Q2[RPC: eth_call 模拟执行]
+  Q2 --> Q3[返回: 预估输出/滑点/手续费/Gas/风险提示]
+  Q3 --> D{用户确认参数?}
+
+  %% ---- Tx Build & Sign ----
+  D -->|否| C
+  D -->|是| E[构造交易数据: to/data/value]
+  E --> F[钱包签名 & 发交易 eth_sendRawTransaction]
+  F --> G[获得 txHash，前端显示 Pending]
+
+  %% ---- On-chain Execution ----
+  G --> H[交易进入 Mempool/打包]
+  H --> I[合约执行: swap/stake/unstake/claim]
+  I --> J[产生事件: Swap/Stake/Unstake/Claim/Transfer]
+
+  %% ---- Off-chain Indexing ----
+  J --> K[Indexer 监听日志/轮询回执]
+  K --> L[解析事件 & 计算用户仓位/收益]
+  L --> M[(PostgreSQL 持久化)]
+  L --> N[(Redis 缓存更新/失效)]
+
+  %% ---- UI Refresh ----
+  M --> O[Backend API /positions /portfolio]
+  N --> O
+  O --> P[前端刷新余额/仓位/收益/历史记录]
+  P --> Z[用户看到成功状态]
+
+  %% ---- Exceptions ----
+  I --> X{执行成功?}
+  X -->|否| X1[回执失败: revert/out-of-gas]
+  X1 --> X2[前端提示失败原因 & 可重试]
+  X -->|是| J
+```
+```mermaid
+flowchart TB
+  %% ========= Clients =========
+  subgraph C[Clients]
+    U[User]
+    FE["Web UI (React)"]
+    WAL["Wallet (MetaMask/WC)"]
+  end
+
+  %% ========= Backend =========
+  subgraph B["Backend (Off-chain)"]
+    API[Go BFF API\nREST/GraphQL]
+    IDX["Event Indexer\n(Logs/Receipts)"]
+    JOB["Keeper/Jobs\n(Cron/Queue)"]
+    RISK["Risk & Policy\n(slippage/limits/blacklist)"]
+    AUTH["Auth & Rate Limit\n(SIWE/Nonce)"]
+  end
+
+  %% ========= Data =========
+  subgraph D[Data Layer]
+    PG["(PostgreSQL)"]
+    REDIS["(Redis Cache)"]
+    OBJ["(Object Storage/Logs)"]
+  end
+
+  %% ========= Observability =========
+  subgraph O[Observability]
+    LOG[Logs]
+    MET[Metrics]
+    AL[Alerts]
+  end
+
+  %% ========= Chain =========
+  subgraph CH[Blockchain]
+    RPC["RPC (Anvil/Provider)"]
+    STK[Staking Contract]
+    RWD[Reward Distributor]
+    TOK["ERC20 Token(s)"]
+    ORA["Oracle (optional)"]
+    GOV[Timelock / Multisig]
+  end
+
+  %% ========= User Journey =========
+  U --> FE --> WAL
+  FE -->|Read positions/APY/history| API
+  API --> REDIS
+  API --> PG
+
+  %% ========= Read & Simulate =========
+  FE -->|Preview/APY/estimate| API
+  API -->|eth_call simulate| RPC
+  RPC --> STK
+
+  %% ========= Write Tx =========
+  WAL -->|approve/stake/unstake/claim| RPC
+  RPC --> STK
+  STK --> RWD
+  STK --> TOK
+  RWD --> TOK
+  STK --> ORA
+
+  %% ========= Indexing =========
+  RPC -->|logs/receipts| IDX
+  IDX -->|decode events\nStake/Unstake/Claim/Transfer| PG
+  IDX --> REDIS
+  IDX --> OBJ
+
+  %% ========= Automation =========
+  JOB --> RPC
+  JOB --> RISK
+  RISK --> PG
+  RISK --> REDIS
+
+  %% ========= Admin/Security =========
+  GOV --> STK
+  GOV --> RWD
+
+  %% ========= Ops =========
+  API --> LOG
+  API --> MET
+  IDX --> LOG
+  IDX --> MET
+  MET --> AL
+  LOG --> AL
+
+  %% ========= Auth =========
+  FE -->|SIWE login| AUTH --> API
+```
+```mermaid
+flowchart TB
+  %% ========= Clients =========
+  subgraph C[Clients]
+    U[User]
+    FE["Web UI (React)"]
+    WAL[Wallet]
+  end
+
+  %% ========= Off-chain =========
+  subgraph OFF[Off-chain Services]
+    API[Go BFF API\nPortfolio/History/Risk View]
+    SIM[Tx Simulation\neth_call / tenderly-like]
+    IDX[Indexer\nEvents/Receipts]
+    KPR[Keepers\nLiquidation/Health checks]
+    RISK[Risk Engine\nCaps/Blacklist/Alerts]
+  end
+
+  %% ========= Data =========
+  subgraph D[Data]
+    PG["(PostgreSQL)"]
+    REDIS["(Redis Cache)"]
+  end
+
+  %% ========= Chain =========
+  subgraph CH[On-chain Lending Protocol]
+    CTRL[Comptroller / Risk Controller]
+    MKT["Markets (cToken/aToken)\nDeposit/Borrow/Repay/Withdraw"]
+    IRM[Interest Rate Model]
+    LIQ[Liquidation Module]
+    TRE[Treasury / Reserve]
+    ORA["Price Oracle\n(Chainlink/Pyth/TWAP)"]
+    TOK[ERC20 Tokens]
+    GOV[Timelock + Multisig]
+  end
+
+  %% ========= Flows: Read =========
+  U --> FE --> WAL
+  FE -->|fetch positions/APY/health| API
+  API --> REDIS
+  API --> PG
+
+  %% ========= Flows: Preview =========
+  FE -->|preview borrow/withdraw| API
+  API --> SIM
+  SIM -->|eth_call| RPC["(RPC)"]
+  RPC --> CTRL
+  RPC --> MKT
+
+  %% ========= Flows: Write =========
+  WAL -->|deposit/borrow/repay/withdraw| RPC
+  RPC --> MKT
+  MKT --> CTRL
+  CTRL --> ORA
+  CTRL --> IRM
+  MKT --> TRE
+  MKT --> TOK
+
+  %% ========= Liquidation =========
+  KPR -->|monitor health factor| RPC
+  KPR -->|trigger liquidation tx| RPC
+  RPC --> LIQ
+  LIQ --> CTRL
+  LIQ --> ORA
+  LIQ --> MKT
+  LIQ --> TRE
+
+  %% ========= Indexing =========
+  RPC --> IDX
+  IDX -->|decode events\nDeposit/Borrow/Repay/Withdraw/Liquidate| PG
+  IDX --> REDIS
+
+  %% ========= Governance =========
+  GOV --> CTRL
+  GOV --> ORA
+  GOV --> IRM
+  GOV --> TRE
+
+  %% ========= Risk Ops =========
+  RISK --> PG
+  RISK --> REDIS
+  RISK -->|alerts| FE
+```
+
+
+
+
+
+
+
+
+```mermaid
+flowchart TB
+  %% ============ Clients ============
+  subgraph C[Clients]
+    U[User]
+    WEB["Web App (React/Next)"]
+    MOB[Mobile / MiniApp]
+    WAL["Wallet (MetaMask/WC/AA)"]
+  end
+
+  %% ============ Edge ============
+  subgraph E[Edge]
+    CDN[CDN/WAF]
+    GW[API Gateway]
+    RL[Rate Limit / Anti-Abuse]
+  end
+
+  %% ============ Off-chain Core ============
+  subgraph OFF[Off-chain Platform]
+    BFF[Go BFF API\nPortfolio/Quote/History]
+    QUOTE[Quote Engine\nRouting/Slippage/Fee]
+    SIM[Tx Simulation\neth_call + revert reason]
+    MEV["Private Tx / MEV Protection\n(optional)"]
+    POLICY[Policy & Risk Rules\nCaps/Whitelist/Blacklist]
+    JOB[Schedulers/Workers\nRebalance/Harvest]
+    IDX[Indexer\nLogs/Receipts/Subgraph]
+  end
+
+  %% ============ Data ============
+  subgraph D[Data Layer]
+    PG["(PostgreSQL/Timescale)"]
+    REDIS["(Redis Cache)"]
+    OBJ["(Object Storage)"]
+    BI[Analytics/BI]
+  end
+
+  %% ============ Chains ============
+  subgraph CH[Multi-chain On-chain]
+    RPC["RPC Pool\n(Self-hosted/Provider)"]
+    BR["Bridge / Message Layer\n(LayerZero/Wormhole/etc)"]
+    ORA["Oracles\n(Chainlink/Pyth/TWAP)"]
+    GOV[Multisig + Timelock]
+    subgraph CORE[Core Contracts]
+      ROUTER[Router/Entry]
+      VAULT["Vault (Shares)"]
+      STRAT["Strategy Modules\n(DEX/Lend/Staking)"]
+      AMM[DEX Pools]
+      LEND[Lending Markets]
+      FEE[FeeCollector]
+      PAUSE[Circuit Breaker]
+    end
+  end
+
+  %% ============ Observability ============
+  subgraph OBS[Observability]
+    LOG[Logs]
+    MET[Metrics]
+    TRC[Tracing]
+    ALT[Alerts]
+  end
+
+  %% ----------- User flow -----------
+  U --> WEB --> CDN --> GW
+  U --> MOB --> CDN
+  WAL --> WEB
+  WAL --> MOB
+
+  GW --> RL --> BFF
+  BFF --> REDIS
+  BFF --> PG
+
+  %% ----------- Quote & Simulate -----------
+  BFF --> QUOTE
+  QUOTE --> RPC
+  BFF --> SIM --> RPC
+
+  %% ----------- Send Tx -----------
+  WAL -->|swap/deposit/withdraw| RPC
+  WEB -->|optional private route| MEV --> RPC
+  RPC --> ROUTER --> VAULT
+  VAULT --> STRAT
+  STRAT --> AMM
+  STRAT --> LEND
+  STRAT --> ORA
+  ROUTER --> FEE
+  GOV --> PAUSE --> ROUTER
+
+  %% ----------- Cross-chain -----------
+  ROUTER --> BR
+  BR --> RPC
+
+  %% ----------- Indexing & Jobs -----------
+  RPC --> IDX
+  IDX --> PG
+  IDX --> OBJ
+  IDX --> REDIS
+  JOB --> RPC
+  JOB --> POLICY
+  POLICY --> PG
+  POLICY --> REDIS
+  BI --> PG
+
+  %% ----------- Observability -----------
+  BFF --> LOG
+  BFF --> MET
+  BFF --> TRC
+  IDX --> LOG
+  IDX --> MET
+  JOB --> LOG
+  MET --> ALT
+  LOG --> ALT
 ```
