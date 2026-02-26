@@ -1078,3 +1078,97 @@ flowchart TB
   MET --> ALT
   LOG --> ALT
 ```
+
+
+
+```mermaid
+flowchart TB
+  %% ========= Clients =========
+  subgraph C[Clients]
+    U[User]
+    FE["Web UI (React)"]
+    WAL[Wallet]
+  end
+
+  %% ========= Off-chain =========
+  subgraph OFF[Off-chain Services]
+    API[Go BFF API\nVault list/APY/portfolio/history]
+    QUOTE[APY/Preview Engine\nfees, slippage, capacity]
+    SIM[Tx Simulation\neth_call + revert reason]
+    KPR[Keeper/Automation\nharvest/rebalance]
+    IDX[Indexer\ndecode events]
+    RISK[Risk & Policy\ncaps, pauses, allowlist]
+  end
+
+  %% ========= Data =========
+  subgraph D[Data]
+    PG["(PostgreSQL)"]
+    REDIS["(Redis Cache)"]
+  end
+
+  %% ========= On-chain =========
+  subgraph CH[On-chain Contracts]
+    RPC[RPC Provider]
+    VAULT["Vault (ERC4626-like)\nshare accounting"]
+    STRAT[Strategy Manager\nallocate/withdraw]
+    subgraph STRATS[Strategies]
+      SDEX[DEX LP Strategy]
+      SLEND[Lending Strategy]
+      SSTK[Staking Strategy]
+    end
+    FEE[FeeCollector\nmgmt/perf fees]
+    ORA[Oracle\nprice/TWAP]
+    GOV[Multisig + Timelock]
+    PAUSE[Circuit Breaker]
+    TOK[ERC20 Asset]
+  end
+
+  %% ========= User actions =========
+  U --> FE --> WAL
+
+  FE -->|view vaults/apy| API
+  API --> REDIS
+  API --> PG
+
+  FE -->|preview deposit/withdraw| API
+  API --> QUOTE --> SIM --> RPC
+  RPC --> VAULT
+  RPC --> STRAT
+  RPC --> ORA
+
+  %% ========= Write transactions =========
+  WAL -->|deposit/withdraw| RPC
+  RPC --> VAULT
+  VAULT --> TOK
+  VAULT -->|mint/burn shares| VAULT
+  VAULT --> STRAT
+
+  %% ========= Strategy execution =========
+  STRAT --> SDEX
+  STRAT --> SLEND
+  STRAT --> SSTK
+  SDEX --> ORA
+  SLEND --> ORA
+  SSTK --> ORA
+  STRAT --> FEE
+
+  %% ========= Automation =========
+  KPR -->|harvest/rebalance| RPC
+  RPC --> STRAT
+  RISK -->|limits/pause rules| KPR
+
+  %% ========= Governance/Safety =========
+  GOV --> PAUSE --> VAULT
+  GOV --> STRAT
+  GOV --> FEE
+
+  %% ========= Indexing =========
+  RPC --> IDX
+  IDX -->|Deposit/Withdraw/Harvest/Sync events| PG
+  IDX --> REDIS
+
+  %% ========= Risk feedback loop =========
+  PG --> RISK
+  ORA --> RISK
+  RISK --> API
+```
