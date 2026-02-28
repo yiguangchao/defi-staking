@@ -1172,3 +1172,55 @@ flowchart TB
   ORA --> RISK
   RISK --> API
 ```
+```mermaid
+graph TD
+    %% 用户层
+    User1[用户钱包 MetaMask/Rainbow 等] -->|连接钱包| DAppFrontend
+
+    %% 前端 + 交互层
+    DAppFrontend[DeFi DApp 前端\nReact/Vue + ethers.js/web3.js] -->|读写调用| SmartContracts
+
+    %% 核心智能合约层
+    subgraph 核心协议合约
+        SmartContracts[协议主合约]
+
+        LendingPool[借贷池\nLendingPool] -->|抵押/借款| RiskEngine[风险引擎\nHealth Factor / 清算]
+        LendingPool -->|利率模型| InterestRateModel[利率模型\nUtilization-based]
+
+        StablecoinMint["稳定币铸造/销毁\n(类似 MakerDAO)"] -->|超额抵押| CollateralVault[抵押金库]
+
+        AMM[自动做市商\nUniswap V3风格] -->|交易对| LiquidityPool[流动性池]
+        AMM -->|价格预言机| Oracle[价格预言机\nChainlink / Pyth / TWAP]
+
+        YieldAggregator[收益聚合器\nYearn风格] -->|自动复投| StrategyVault[策略金库]
+
+        FlashLoan[闪电贷模块] -->|0成本借贷| ArbitrageBot[套利/清算机器人]
+    end
+
+    %% 外部依赖
+    Oracle -.->|喂价| LendingPool
+    Oracle -.->|喂价| AMM
+    Oracle -.->|喂价| StablecoinMint
+
+    %% 代币与激励
+    GovernanceToken[治理代币 / 激励代币] -->|质押/奖励| StakingModule[质押 & veToken 模块]
+    StakingModule -->|投票权| Governance[Governance DAO]
+
+    %% 数据与监控
+    subgraph 基础设施
+        TheGraph[The Graph 子图] -.->|索引事件| DAppFrontend
+        SubGraph -->|历史数据| Analytics[分析仪表盘]
+    end
+
+    classDef user fill:#a3e4d7,stroke:#1c7c54
+    classDef frontend fill:#fad7a0,stroke:#b36f09
+    classDef contract fill:#d5d8dc,stroke:#5d6d7e
+    classDef oracle fill:#d7bde2,stroke:#6c3483
+    classDef infra fill:#e5e7e9,stroke:#7b7d7d
+
+    class User1 user
+    class DAppFrontend frontend
+    class SmartContracts,LendingPool,AMM,FlashLoan,StablecoinMint contract
+    class Oracle oracle
+    class TheGraph,SubGraph infra
+```
